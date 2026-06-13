@@ -25,6 +25,17 @@ DB_PATH = os.environ.get("WIPO_DB", str(ROOT / "data" / "europe.sqlite"))
 
 app = FastAPI(title="WIPO Patents — Europe")
 
+
+@app.middleware("http")
+async def _cache_headers(request, call_next):
+    # HTML/CSS/JS: revalidate every load (cheap via ETag) so deploys propagate immediately
+    # instead of being stuck in aggressive mobile caches.
+    resp = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith((".html", ".css", ".js")):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
 # ---- tiny static-data cache (correct because the DB never changes) -------------------
 _CACHE = OrderedDict()
 _CACHE_MAX = 1000
