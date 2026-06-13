@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WIPO Patents · Europe</title>
-<link rel="stylesheet" href="/styles.css?v=6">
+<link rel="stylesheet" href="/styles.css?v=7">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 </head>
 <body>
@@ -29,6 +29,13 @@
     <div class="filters-body">
     <label>WIPO technology field
       <select id="f-field"><option value="0">All fields</option></select>
+    </label>
+    <label>Patent status
+      <select id="f-status">
+        <option value="">All statuses</option>
+        <option value="granted">Granted</option>
+        <option value="application">Application (pending)</option>
+      </select>
     </label>
     <label>Applicant country
       <select id="f-country"><option value="">All countries</option></select>
@@ -90,6 +97,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/app.js?v=6"></script>
+<script src="/app.js?v=7"></script>
 </body>
 </html>

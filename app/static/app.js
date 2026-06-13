@@ -10,7 +10,8 @@ const esc = s => (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 
 function summaryHTML() {
   const a = state.applied || {};
-  let s = `Showing all ${a.field ? `<b>${FIELDS[a.field]}</b> ` : ""}patents`;
+  const st = a.status === "granted" ? "<b>granted</b> " : a.status === "application" ? "<b>pending</b> " : "";
+  let s = `Showing all ${st}${a.field ? `<b>${FIELDS[a.field]}</b> ` : ""}patents`;
   if (a.country) s += ` in <b>${countryName(a.country)}</b>`;
   if (a.q) s += ` matching “<b>${esc(a.q)}</b>”`;
   if (a.y0 && a.y1) s += ` from <b>${a.y0}–${a.y1}</b>`;
@@ -22,8 +23,10 @@ function summaryHTML() {
 function params() {
   const p = new URLSearchParams();
   const field = $("#f-field").value, country = $("#f-country").value,
-        q = $("#f-company").value.trim(), y0 = $("#f-y0").value, y1 = $("#f-y1").value;
+        q = $("#f-company").value.trim(), y0 = $("#f-y0").value, y1 = $("#f-y1").value,
+        status = $("#f-status").value;
   if (field && field !== "0") p.set("field", field);
+  if (status) p.set("status", status);
   if (country) p.set("country", country);
   if (q) p.set("q", q);
   if (y0) p.set("y0", y0);
@@ -57,6 +60,7 @@ async function refresh() {
   state.offset = 0;
   state.applied = {
     field: $("#f-field").value !== "0" ? +$("#f-field").value : 0,
+    status: $("#f-status").value,
     country: $("#f-country").value,
     q: $("#f-company").value.trim(),
     y0: +$("#f-y0").value || 0,
@@ -139,8 +143,8 @@ async function loadCompanies() {
 // events
 $("#apply").onclick = refresh;
 $("#reset").onclick = () => {
-  $("#f-field").value = "0"; $("#f-country").value = ""; $("#f-company").value = "";
-  $("#f-y0").value = ""; $("#f-y1").value = ""; refresh();
+  $("#f-field").value = "0"; $("#f-status").value = ""; $("#f-country").value = "";
+  $("#f-company").value = ""; $("#f-y0").value = ""; $("#f-y1").value = ""; refresh();
 };
 $("#f-company").addEventListener("keydown", e => { if (e.key === "Enter") refresh(); });
 $("#dim").addEventListener("click", e => {

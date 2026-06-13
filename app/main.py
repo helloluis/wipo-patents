@@ -58,11 +58,11 @@ def db():
     return con
 
 
-def base(field, country, q, y0, y1):
+def base(field, country, q, y0, y1, status=""):
     """Return (join, where_sql, params) yielding DISTINCT matching families efficiently.
 
     Country/company → a deduped family_id subquery off the assignee index.
-    Field/year      → direct predicates on patent_family.
+    Field/year/status → direct predicates on patent_family.
     """
     join, where, params = "", [], []
     sub, sparams = [], []
@@ -76,6 +76,10 @@ def base(field, country, q, y0, y1):
         params += sparams
     if field:
         where.append("f.primary_field_number = ?"); params.append(field)
+    if status == "granted":
+        where.append("f.granted = 1")
+    elif status == "application":
+        where.append("f.granted = 0")
     if y0:
         where.append("f.filing_year >= ?"); params.append(y0)
     if y1:
@@ -112,12 +116,12 @@ def meta():
 # ---- endpoints -----------------------------------------------------------------------
 @app.get("/api/trend")
 def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
-          y0: int = 0, y1: int = 0):
-    unfiltered = not (field or country or q or y0 or y1)
+          y0: int = 0, y1: int = 0, status: str = ""):
+    unfiltered = not (field or country or q or y0 or y1 or status)
 
     def run():
         con = db()
-        join, where, params = base(field, country, q, y0, y1)
+        join, where, params = base(field, country, q, y0, y1, status)
         if dim == "country" and unfiltered:
             # served from the materialized table — instant
             sql, params = ("SELECT country_code AS label, n_families AS n FROM country_stats "
@@ -137,15 +141,15 @@ def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
         rows = [dict(r) for r in con.execute(sql, params)]
         con.close()
         return {"dim": dim, "data": rows}
-    return cached(("trend", dim, field, country, q, y0, y1), run)
+    return cached(("trend", dim, field, country, q, y0, y1, status), run)
 
 
 @app.get("/api/patents")
 def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
-            limit: int = 50, offset: int = 0):
+            status: str = "", limit: int = 50, offset: int = 0):
     def run():
         con = db()
-        join, where, params = base(field, country, q, y0, y1)
+        join, where, params = base(field, country, q, y0, y1, status)
         total = con.execute(
             f"SELECT COUNT(*) FROM patent_family f {join} {where}", params).fetchone()[0]
         rows = con.execute(
@@ -170,13 +174,13 @@ def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int
             d["assignees"] = owners.get(r["family_id"], [])
             out.append(d)
         return {"total": total, "limit": limit, "offset": offset, "rows": out}
-    return cached(("patents", field, country, q, y0, y1, limit, offset), run)
+    return cached(("patents", field, country, q, y0, y1, status, limit, offset), run)
 
 
 @app.get("/api/companies")
 def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
-              limit: int = 25):
-    unfiltered = not (field or country or q or y0 or y1)
+              status: str = "", limit: int = 25):
+    unfiltered = not (field or country or q or y0 or y1 or status)
 
     def run():
         con = db()
@@ -188,7 +192,7 @@ def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: i
                         "ORDER BY n_families DESC LIMIT ?", [limit])]
             con.close()
             return {"rows": rows}
-        join, where, params = base(field, country, q, y0, y1)
+        join, where, params = base(field, country, q, y0, y1, status)
         glue = "AND" if where else "WHERE"
         sql = (f"SELECT a2.name, a2.country_code, COUNT(DISTINCT f.family_id) AS families "
                f"FROM patent_family f {join} JOIN family_assignee a2 ON a2.family_id = f.family_id "
@@ -197,7 +201,7 @@ def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: i
         rows = [dict(r) for r in con.execute(sql, params + [limit])]
         con.close()
         return {"rows": rows}
-    return cached(("companies", field, country, q, y0, y1, limit), run)
+    return cached(("companies", field, country, q, y0, y1, status, limit), run)
 
 
 def _iso(d):
@@ -206,9 +210,9 @@ def _iso(d):
 
 
 @app.get("/api/export.csv")
-def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0):
+def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0, status: str = ""):
     con = db()
-    join, where, params = base(field, country, q, y0, y1)
+    join, where, params = base(field, country, q, y0, y1, status)
     CAP = 50000
     rows = con.execute(
         f"""SELECT f.family_id, f.rep_publication, f.rep_application, f.filing_year,

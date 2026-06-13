@@ -2,7 +2,9 @@
 """
 Extract the all-Europe dataset from BigQuery into local SQLite (family-level, enriched).
 
-Universe: DOCDB family, GRANTED, earliest priority/filing year 2000-2026, >=1 European applicant.
+Universe: DOCDB family, earliest priority/filing year 2000-2026, >=1 European applicant.
+Includes BOTH granted patents and pending applications (the `granted` flag distinguishes them) so
+recent filing years aren't lost to grant lag.
 
 Per family we capture everything available in Google Patents public data:
   identifiers (representative publication + application number, family members),
@@ -104,7 +106,6 @@ SELECT
 FROM fam
 WHERE COALESCE(priority_date, filing_date) IS NOT NULL
   AND CAST(FLOOR(COALESCE(priority_date, filing_date)/10000) AS INT64) BETWEEN 2000 AND 2026
-  AND granted
   AND EXISTS(SELECT 1 FROM UNNEST(assignees) a WHERE a.country_code IN {eur})
 """
 
@@ -178,6 +179,8 @@ def main():
     con.commit()
     for label, q in [
         ("families", "SELECT COUNT(*) FROM patent_family"),
+        ("granted", "SELECT COUNT(*) FROM patent_family WHERE granted=1"),
+        ("applications", "SELECT COUNT(*) FROM patent_family WHERE granted=0"),
         ("with CPC", "SELECT COUNT(*) FROM patent_family WHERE cpc_codes != ''"),
         ("distinct companies", "SELECT COUNT(DISTINCT name) FROM family_assignee")]:
         print(f"  {label:<20} {con.execute(q).fetchone()[0]:>12,}")
