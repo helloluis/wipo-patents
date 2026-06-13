@@ -82,23 +82,36 @@ async function drawChart() {
   const p = params(); p.set("dim", state.dim);
   const { data } = await (await fetch("/api/trend?" + p)).json();
   $("#chart-title").textContent =
-    { year: "Patent families by year", field: "Top WIPO technology fields", country: "Top applicant countries" }[state.dim];
-  const horizontal = state.dim !== "year";
+    { year: "By filing year — granted vs. pending", field: "Top WIPO technology fields", country: "Top applicant countries" }[state.dim];
+  const isYear = state.dim === "year";
+  const horizontal = !isYear;
   const labels = data.map(d => state.dim === "country" ? countryName(d.label) : d.label);
   const valueTicks = { font: { size: 11 }, callback: kfmt };
   const catTicks = { font: { size: 11 }, autoSkip: false };
+
+  const datasets = isYear
+    ? [{ label: "Granted", data: data.map(d => d.granted), backgroundColor: "#3257d0", borderRadius: 3, maxBarThickness: 26 },
+       { label: "Pending", data: data.map(d => d.pending), backgroundColor: "#e8a13c", borderRadius: 3, maxBarThickness: 26 }]
+    : [{ data: data.map(d => d.n), backgroundColor: "#3257d0", borderRadius: 4, maxBarThickness: 22 }];
+
+  const tooltip = isYear
+    ? { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}`,
+                     footer: items => "Total filed: " + fmt(items.reduce((s, i) => s + i.parsed.y, 0)) } }
+    : { callbacks: { label: c => fmt(horizontal ? c.parsed.x : c.parsed.y) + " families" } };
+
   const cfg = {
     type: "bar",
-    data: { labels,
-            datasets: [{ data: data.map(d => d.n), backgroundColor: "#3257d0", borderRadius: 4,
-                         maxBarThickness: horizontal ? 22 : 26 }] },
+    data: { labels, datasets },
     options: {
       indexAxis: horizontal ? "y" : "x",
-      plugins: { legend: { display: false },
-                 tooltip: { callbacks: { label: c => fmt(horizontal ? c.parsed.x : c.parsed.y) + " families" } } },
+      plugins: {
+        legend: { display: isYear, position: "top", align: "end", labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip,
+      },
       scales: horizontal
         ? { x: { grid: { color: "#eef0f6" }, ticks: valueTicks }, y: { grid: { display: false }, ticks: catTicks } }
-        : { x: { grid: { display: false }, ticks: catTicks }, y: { grid: { color: "#eef0f6" }, ticks: valueTicks } },
+        : { x: { stacked: isYear, grid: { display: false }, ticks: catTicks },
+            y: { stacked: isYear, grid: { color: "#eef0f6" }, ticks: valueTicks } },
       responsive: true, maintainAspectRatio: false
     }
   };

@@ -135,8 +135,10 @@ def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
             sql = (f"SELECT a.country_code AS label, COUNT(DISTINCT f.family_id) AS n "
                    f"FROM patent_family f {join} JOIN family_assignee a ON a.family_id = f.family_id "
                    f"{where} {glue} a.country_code != '' GROUP BY a.country_code ORDER BY n DESC LIMIT 15")
-        else:
-            sql = (f"SELECT f.filing_year AS label, COUNT(*) AS n FROM patent_family f {join} {where} "
+        else:  # year — split by grant status for the stacked filed-vs-granted view
+            sql = (f"SELECT f.filing_year AS label, "
+                   f"SUM(f.granted) AS granted, SUM(1 - f.granted) AS pending "
+                   f"FROM patent_family f {join} {where} "
                    f"GROUP BY f.filing_year ORDER BY f.filing_year")
         rows = [dict(r) for r in con.execute(sql, params)]
         con.close()
