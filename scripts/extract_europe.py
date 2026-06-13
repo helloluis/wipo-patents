@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS family_field (
   family_id TEXT, field_number INTEGER, weight REAL, PRIMARY KEY (family_id, field_number));
 CREATE TABLE IF NOT EXISTS family_inventor_country (
   family_id TEXT, country_code TEXT, PRIMARY KEY (family_id, country_code));
+"""
+
+# Created AFTER the bulk load — building indexes up front makes every insert maintain them
+# and slows the load ~10x.
+INDEXES = """
 CREATE INDEX IF NOT EXISTS ix_pf_year       ON patent_family(filing_year);
 CREATE INDEX IF NOT EXISTS ix_pf_field      ON patent_family(primary_field_number);
 CREATE INDEX IF NOT EXISTS ix_pf_field_year ON patent_family(primary_field_number, filing_year);
@@ -165,6 +170,9 @@ def main():
             print(f"  {n:,} families")
     con.commit()
     print(f"Loaded {n:,} families -> {out}")
+    print("Creating indexes...")
+    con.executescript(INDEXES)
+    con.commit()
     print("Building materialized stats tables (company_stats, country_stats)...")
     con.executescript((ROOT / "sql" / "build_stats.sql").read_text(encoding="utf-8"))
     con.commit()
