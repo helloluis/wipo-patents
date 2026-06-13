@@ -52,8 +52,10 @@ def filters(field, country, q, y0, y1):
     return joins, where_sql, params, need_assignee
 
 
-@app.get("/api/meta")
-def meta():
+_META = {}  # static facets (field/country lists + totals) — computed once, cached in-process
+
+
+def _compute_meta():
     con = db()
     fields = [dict(r) for r in con.execute(
         "SELECT field_number, field_name, sector_name FROM field ORDER BY field_number")]
@@ -66,6 +68,19 @@ def meta():
     con.close()
     return {"fields": fields, "countries": countries,
             "year_min": yr[0], "year_max": yr[1], "total_families": tot, "total_companies": ncomp}
+
+
+@app.on_event("startup")
+def _warm():
+    # compute meta once and pull the hot tables into page cache so first user requests are fast
+    _META.update(_compute_meta())
+
+
+@app.get("/api/meta")
+def meta():
+    if not _META:
+        _META.update(_compute_meta())
+    return _META
 
 
 @app.get("/api/trend")
