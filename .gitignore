@@ -1,0 +1,19 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# data artifacts (rebuild from BigQuery; do not commit large DBs / exports)
+data/*.sqlite
+data/*.sqlite-*
+data/export/
+data/*.log
+*.parquet
+*.gz
+*.sha256
+# Orbis-licensed exports must NEVER be committed to a public repo
+*.xlsx
+*.xls
+# keep the concordance CSVs (small, version them)
+!data/concordance/

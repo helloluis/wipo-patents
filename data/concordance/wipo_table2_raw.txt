@@ -1,0 +1,82 @@
+Table 2:          New concept of technology classification, update: May 2008
+    Area, field              IPC code
+I   Electrical engineering
+1 Electrical machinery,      F21#, H01B, H01C, H01F, H01G, H01H, H01J, H01K, H01M,
+  apparatus, energy          H01R, H01T, H02#, H05B, H05C, H05F, H99Z
+2 Audio-visual technology    G09F, G09G, G11B, H04N-003, H04N-005, H04N-009, H04N-
+                             013, H04N-015, H04N-017, H04R, H04S, H05K
+3 Telecommunications         G08C, H01P, H01Q, H04B, H04H, H04J, H04K, H04M, H04N-
+                             001, H04N-007, H04N-011, H04Q
+4 Digital communication      H04L
+
+5 Basic communication        H03#
+  processes
+6 Computer technology        (G06# not G06Q), G11C, G10L
+
+7 IT methods for manage-     G06Q
+  ment
+8 Semiconductors             H01L
+II Instruments
+9 Optics                     G02#, G03B, G03C, G03D, G03F, G03G, G03H, H01S
+10 Measurement               G01B, G01C, G01D, G01F, G01G, G01H, G01J, G01K, G01L,
+                             G01M, (G01N not G01N-033), G01P, G01R, G01S; G01V,
+                             G01W, G04#, G12B, G99Z
+11 Analysis of biological    G01N-033
+   materials
+12 Control                   G05B, G05D, G05F, G07#, G08B, G08G, G09B, G09C, G09D
+13 Medical technology        A61B, A61C, A61D, A61F, A61G, A61H, A61J, A61L, A61M,
+                             A61N, H05G
+III Chemistry
+14 Organic fine chemistry    (C07B, C07C, C07D, C07F, C07H, C07J, C40B) not A61K,
+                             A61K-008, A61Q
+15 Biotechnology             (C07G, C07K, C12M, C12N, C12P, C12Q, C12R, C12S) not
+                             A61K
+16 Pharmaceuticals           A61K not A61K-008
+17 Macromolecular chemis-    C08B, C08C, C08F, C08G, C08H, C08K, C08L
+   try, polymers
+18 Food chemistry            A01H, A21D, A23B, A23C, A23D, A23F, A23G, A23J, A23K,
+                             A23L, C12C, C12F, C12G, C12H, C12J, C13D, C13F, C13J,
+                             C13K
+19 Basic materials chemis-   A01N, A01P, C05#, C06#, C09B, C09C, C09F, C09G, C09H,
+   try                       C09K, C09D, C09J, C10B, C10C, C10F, C10G, C10H, C10J,
+                             C10K, C10L, C10M, C10N, C11B, C11C, C11D, C99Z
+20 Materials, metallurgy     C01#, C03C, C04#, C21#, C22#, B22#
+                                               10
+
+21 Surface technology,         B05C, B05D, B32#, C23#, C25#, C30#
+   coating
+22 Micro-structure and         B81#, B82#
+   nano-technology
+23 Chemical engineering        B01B, B01D-000#, B01D-01##, B01D-02##, B01D-03##, B01D-
+                               041, B01D-043, B01D-057, B01D-059, B01D-06##, B01D-07##,
+                               B01F, B01J, B01L, B02C, B03#, B04#, B05B, B06B, B07#,
+                               B08#, D06B, D06C, D06L, F25J, F26#, C14C, H05H
+24 Environmental technol-      A62D, B01D-045, B01D-046, B01D-047, B01D-049, B01D-050,
+   ogy                         B01D-051, B01D-052, B01D-053, B09#, B65F, C02#, F01N,
+                               F23G, F23J, G01T, E01F-008, A62C
+IV Mechanical engineer-
+   ing
+25 Handling                    B25J, B65B, B65C, B65D, B65G, B65H, B66#, B67#
+26 Machine tools               B21#, B23#, B24#, B26D, B26F, B27#, B30#, B25B, B25C,
+                               B25D, B25F, B25G, B25H, B26B
+27 Engines, pumps, tur-        F01B, F01C, F01D, F01K, F01L, F01M, F01P, F02#, F03#,
+   bines                       F04#, F23R, G21#, F99Z
+28 Textile and paper           A41H, A43D, A46D, C14B, D01#, D02#, D03#, D04B, D04C,
+   machines                    D04G, D04H, D05#, D06G, D06H, D06J, D06M, D06P, D06Q,
+                               D99Z, B31#, D21#, B41#
+29 Other special machines      A01B, A01C, A01D, A01F, A01G, A01J, A01K, A01L, A01M,
+                               A21B, A21C, A22#, A23N, A23P, B02B, C12L, C13C, C13G,
+                               C13H, B28#, B29#, C03B, C08J, B99Z, F41#, F42#
+30 Thermal processes and       F22#, F23B, F23C, F23D, F23H, F23K, F23L, F23M, F23N,
+   apparatus                   F23Q, F24#, F25B, F25C, F27#, F28#
+31 Mechanical elements         F15#, F16#, F17#, G05G
+32 Transport                   B60#, B61#, B62#, B63B, B63C, B63G, B63H, B63J, B64#
+V Other fields
+33 Furniture, games            A47#, A63#
+34 Other consumer goods        A24#, A41B, A41C, A41D, A41F, A41G, A42#, A43B, A43C,
+                               A44#, A45#, A46B, A62B, B42#, B43#, D04D, D07#, G10B,
+                               G10C, G10D, G10F, G10G, G10H, G10K, B44#, B68#, D06F,
+                               D06N, F25D, A99Z
+35 Civil engineering           E02#, E01B, E01C, E01D, E01F-001, E01F-003, E01F-005,
+                               E01F-007, E01F-009, E01F-01#, E01H, E03#, E04#, E05#,
+                               E06#, E21#, E99Z

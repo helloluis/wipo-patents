@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    # bind to localhost only; put nginx (or the b11.dev proxy) in front for wipo.b11.dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data/europe.sqlite:/data/europe.sqlite:ro
+    restart: unless-stopped

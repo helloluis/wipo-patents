@@ -1,0 +1,383 @@
+field_number,field_name,sector_number,sector_name,match_type,match_value,maingroup,note,source_token
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,prefix3,F21,,,F21#
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01B,,,H01B
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01C,,,H01C
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01F,,,H01F
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01G,,,H01G
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01H,,,H01H
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01J,,,H01J
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01K,,,H01K
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01M,,,H01M
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01R,,,H01R
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H01T,,,H01T
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,prefix3,H02,,,H02#
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H05B,,,H05B
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H05C,,,H05C
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H05F,,,H05F
+1,"Electrical machinery, apparatus, energy",1,Electrical engineering,subclass,H99Z,,,H99Z
+2,Audio-visual technology,1,Electrical engineering,subclass,G09F,,,G09F
+2,Audio-visual technology,1,Electrical engineering,subclass,G09G,,,G09G
+2,Audio-visual technology,1,Electrical engineering,subclass,G11B,,,G11B
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,3,,H04N-003
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,5,,H04N-005
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,9,,H04N-009
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,13,,H04N-013
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,15,,H04N-015
+2,Audio-visual technology,1,Electrical engineering,maingroup,H04N,17,,H04N-017
+2,Audio-visual technology,1,Electrical engineering,subclass,H04R,,,H04R
+2,Audio-visual technology,1,Electrical engineering,subclass,H04S,,,H04S
+2,Audio-visual technology,1,Electrical engineering,subclass,H05K,,,H05K
+3,Telecommunications,1,Electrical engineering,subclass,G08C,,,G08C
+3,Telecommunications,1,Electrical engineering,subclass,H01P,,,H01P
+3,Telecommunications,1,Electrical engineering,subclass,H01Q,,,H01Q
+3,Telecommunications,1,Electrical engineering,subclass,H04B,,,H04B
+3,Telecommunications,1,Electrical engineering,subclass,H04H,,,H04H
+3,Telecommunications,1,Electrical engineering,subclass,H04J,,,H04J
+3,Telecommunications,1,Electrical engineering,subclass,H04K,,,H04K
+3,Telecommunications,1,Electrical engineering,subclass,H04M,,,H04M
+3,Telecommunications,1,Electrical engineering,maingroup,H04N,1,,H04N-001
+3,Telecommunications,1,Electrical engineering,maingroup,H04N,7,,H04N-007
+3,Telecommunications,1,Electrical engineering,maingroup,H04N,11,,H04N-011
+3,Telecommunications,1,Electrical engineering,subclass,H04Q,,,H04Q
+4,Digital communication,1,Electrical engineering,subclass,H04L,,,H04L
+5,Basic communication processes,1,Electrical engineering,prefix3,H03,,,H03#
+6,Computer technology,1,Electrical engineering,prefix3,G06,,,G06#
+6,Computer technology,1,Electrical engineering,subclass,G11C,,,G11C
+6,Computer technology,1,Electrical engineering,subclass,G10L,,,G10L
+7,IT methods for management,1,Electrical engineering,subclass,G06Q,,,G06Q
+8,Semiconductors,1,Electrical engineering,subclass,H01L,,,H01L
+9,Optics,2,Instruments,prefix3,G02,,,G02#
+9,Optics,2,Instruments,subclass,G03B,,,G03B
+9,Optics,2,Instruments,subclass,G03C,,,G03C
+9,Optics,2,Instruments,subclass,G03D,,,G03D
+9,Optics,2,Instruments,subclass,G03F,,,G03F
+9,Optics,2,Instruments,subclass,G03G,,,G03G
+9,Optics,2,Instruments,subclass,G03H,,,G03H
+9,Optics,2,Instruments,subclass,H01S,,,H01S
+10,Measurement,2,Instruments,subclass,G01B,,,G01B
+10,Measurement,2,Instruments,subclass,G01C,,,G01C
+10,Measurement,2,Instruments,subclass,G01D,,,G01D
+10,Measurement,2,Instruments,subclass,G01F,,,G01F
+10,Measurement,2,Instruments,subclass,G01G,,,G01G
+10,Measurement,2,Instruments,subclass,G01H,,,G01H
+10,Measurement,2,Instruments,subclass,G01J,,,G01J
+10,Measurement,2,Instruments,subclass,G01K,,,G01K
+10,Measurement,2,Instruments,subclass,G01L,,,G01L
+10,Measurement,2,Instruments,subclass,G01M,,,G01M
+10,Measurement,2,Instruments,subclass,G01N,,,G01N
+10,Measurement,2,Instruments,subclass,G01P,,,G01P
+10,Measurement,2,Instruments,subclass,G01R,,,G01R
+10,Measurement,2,Instruments,subclass,G01V,,,G01V
+10,Measurement,2,Instruments,subclass,G01W,,,G01W
+10,Measurement,2,Instruments,prefix3,G04,,,G04#
+10,Measurement,2,Instruments,subclass,G12B,,,G12B
+10,Measurement,2,Instruments,subclass,G99Z,,,G99Z
+11,Analysis of biological materials,2,Instruments,maingroup,G01N,33,,G01N-033
+12,Control,2,Instruments,subclass,G05B,,,G05B
+12,Control,2,Instruments,subclass,G05D,,,G05D
+12,Control,2,Instruments,subclass,G05F,,,G05F
+12,Control,2,Instruments,prefix3,G07,,,G07#
+12,Control,2,Instruments,subclass,G08B,,,G08B
+12,Control,2,Instruments,subclass,G08G,,,G08G
+12,Control,2,Instruments,subclass,G09B,,,G09B
+12,Control,2,Instruments,subclass,G09C,,,G09C
+12,Control,2,Instruments,subclass,G09D,,,G09D
+13,Medical technology,2,Instruments,subclass,A61B,,,A61B
+13,Medical technology,2,Instruments,subclass,A61C,,,A61C
+13,Medical technology,2,Instruments,subclass,A61D,,,A61D
+13,Medical technology,2,Instruments,subclass,A61F,,,A61F
+13,Medical technology,2,Instruments,subclass,A61G,,,A61G
+13,Medical technology,2,Instruments,subclass,A61H,,,A61H
+13,Medical technology,2,Instruments,subclass,A61J,,,A61J
+13,Medical technology,2,Instruments,subclass,A61L,,,A61L
+13,Medical technology,2,Instruments,subclass,A61M,,,A61M
+13,Medical technology,2,Instruments,subclass,A61N,,,A61N
+13,Medical technology,2,Instruments,subclass,H05G,,,H05G
+14,Organic fine chemistry,3,Chemistry,subclass,C07B,,,C07B
+14,Organic fine chemistry,3,Chemistry,subclass,C07C,,,C07C
+14,Organic fine chemistry,3,Chemistry,subclass,C07D,,,C07D
+14,Organic fine chemistry,3,Chemistry,subclass,C07F,,,C07F
+14,Organic fine chemistry,3,Chemistry,subclass,C07H,,,C07H
+14,Organic fine chemistry,3,Chemistry,subclass,C07J,,,C07J
+14,Organic fine chemistry,3,Chemistry,subclass,C40B,,,C40B
+15,Biotechnology,3,Chemistry,subclass,C07G,,,C07G
+15,Biotechnology,3,Chemistry,subclass,C07K,,,C07K
+15,Biotechnology,3,Chemistry,subclass,C12M,,,C12M
+15,Biotechnology,3,Chemistry,subclass,C12N,,,C12N
+15,Biotechnology,3,Chemistry,subclass,C12P,,,C12P
+15,Biotechnology,3,Chemistry,subclass,C12Q,,,C12Q
+15,Biotechnology,3,Chemistry,subclass,C12R,,,C12R
+15,Biotechnology,3,Chemistry,subclass,C12S,,,C12S
+16,Pharmaceuticals,3,Chemistry,subclass,A61K,,,A61K
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08B,,,C08B
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08C,,,C08C
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08F,,,C08F
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08G,,,C08G
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08H,,,C08H
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08K,,,C08K
+17,"Macromolecular chemistry, polymers",3,Chemistry,subclass,C08L,,,C08L
+18,Food chemistry,3,Chemistry,subclass,A01H,,,A01H
+18,Food chemistry,3,Chemistry,subclass,A21D,,,A21D
+18,Food chemistry,3,Chemistry,subclass,A23B,,,A23B
+18,Food chemistry,3,Chemistry,subclass,A23C,,,A23C
+18,Food chemistry,3,Chemistry,subclass,A23D,,,A23D
+18,Food chemistry,3,Chemistry,subclass,A23F,,,A23F
+18,Food chemistry,3,Chemistry,subclass,A23G,,,A23G
+18,Food chemistry,3,Chemistry,subclass,A23J,,,A23J
+18,Food chemistry,3,Chemistry,subclass,A23K,,,A23K
+18,Food chemistry,3,Chemistry,subclass,A23L,,,A23L
+18,Food chemistry,3,Chemistry,subclass,C12C,,,C12C
+18,Food chemistry,3,Chemistry,subclass,C12F,,,C12F
+18,Food chemistry,3,Chemistry,subclass,C12G,,,C12G
+18,Food chemistry,3,Chemistry,subclass,C12H,,,C12H
+18,Food chemistry,3,Chemistry,subclass,C12J,,,C12J
+18,Food chemistry,3,Chemistry,subclass,C13D,,,C13D
+18,Food chemistry,3,Chemistry,subclass,C13F,,,C13F
+18,Food chemistry,3,Chemistry,subclass,C13J,,,C13J
+18,Food chemistry,3,Chemistry,subclass,C13K,,,C13K
+19,Basic materials chemistry,3,Chemistry,subclass,A01N,,,A01N
+19,Basic materials chemistry,3,Chemistry,subclass,A01P,,,A01P
+19,Basic materials chemistry,3,Chemistry,prefix3,C05,,,C05#
+19,Basic materials chemistry,3,Chemistry,prefix3,C06,,,C06#
+19,Basic materials chemistry,3,Chemistry,subclass,C09B,,,C09B
+19,Basic materials chemistry,3,Chemistry,subclass,C09C,,,C09C
+19,Basic materials chemistry,3,Chemistry,subclass,C09F,,,C09F
+19,Basic materials chemistry,3,Chemistry,subclass,C09G,,,C09G
+19,Basic materials chemistry,3,Chemistry,subclass,C09H,,,C09H
+19,Basic materials chemistry,3,Chemistry,subclass,C09K,,,C09K
+19,Basic materials chemistry,3,Chemistry,subclass,C09D,,,C09D
+19,Basic materials chemistry,3,Chemistry,subclass,C09J,,,C09J
+19,Basic materials chemistry,3,Chemistry,subclass,C10B,,,C10B
+19,Basic materials chemistry,3,Chemistry,subclass,C10C,,,C10C
+19,Basic materials chemistry,3,Chemistry,subclass,C10F,,,C10F
+19,Basic materials chemistry,3,Chemistry,subclass,C10G,,,C10G
+19,Basic materials chemistry,3,Chemistry,subclass,C10H,,,C10H
+19,Basic materials chemistry,3,Chemistry,subclass,C10J,,,C10J
+19,Basic materials chemistry,3,Chemistry,subclass,C10K,,,C10K
+19,Basic materials chemistry,3,Chemistry,subclass,C10L,,,C10L
+19,Basic materials chemistry,3,Chemistry,subclass,C10M,,,C10M
+19,Basic materials chemistry,3,Chemistry,subclass,C10N,,,C10N
+19,Basic materials chemistry,3,Chemistry,subclass,C11B,,,C11B
+19,Basic materials chemistry,3,Chemistry,subclass,C11C,,,C11C
+19,Basic materials chemistry,3,Chemistry,subclass,C11D,,,C11D
+19,Basic materials chemistry,3,Chemistry,subclass,C99Z,,,C99Z
+20,"Materials, metallurgy",3,Chemistry,prefix3,C01,,,C01#
+20,"Materials, metallurgy",3,Chemistry,subclass,C03C,,,C03C
+20,"Materials, metallurgy",3,Chemistry,prefix3,C04,,,C04#
+20,"Materials, metallurgy",3,Chemistry,prefix3,C21,,,C21#
+20,"Materials, metallurgy",3,Chemistry,prefix3,C22,,,C22#
+20,"Materials, metallurgy",3,Chemistry,prefix3,B22,,,B22#
+21,"Surface technology, coating",3,Chemistry,subclass,B05C,,,B05C
+21,"Surface technology, coating",3,Chemistry,subclass,B05D,,,B05D
+21,"Surface technology, coating",3,Chemistry,prefix3,B32,,,B32#
+21,"Surface technology, coating",3,Chemistry,prefix3,C23,,,C23#
+21,"Surface technology, coating",3,Chemistry,prefix3,C25,,,C25#
+21,"Surface technology, coating",3,Chemistry,prefix3,C30,,,C30#
+22,Micro-structure and nano-technology,3,Chemistry,prefix3,B81,,,B81#
+22,Micro-structure and nano-technology,3,Chemistry,prefix3,B82,,,B82#
+23,Chemical engineering,3,Chemistry,subclass,B01B,,,B01B
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-000#
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-01##
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-02##
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-03##
+23,Chemical engineering,3,Chemistry,maingroup,B01D,41,,B01D-041
+23,Chemical engineering,3,Chemistry,maingroup,B01D,43,,B01D-043
+23,Chemical engineering,3,Chemistry,maingroup,B01D,57,,B01D-057
+23,Chemical engineering,3,Chemistry,maingroup,B01D,59,,B01D-059
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-06##
+23,Chemical engineering,3,Chemistry,subclass,B01D,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,B01D-07##
+23,Chemical engineering,3,Chemistry,subclass,B01F,,,B01F
+23,Chemical engineering,3,Chemistry,subclass,B01J,,,B01J
+23,Chemical engineering,3,Chemistry,subclass,B01L,,,B01L
+23,Chemical engineering,3,Chemistry,subclass,B02C,,,B02C
+23,Chemical engineering,3,Chemistry,prefix3,B03,,,B03#
+23,Chemical engineering,3,Chemistry,prefix3,B04,,,B04#
+23,Chemical engineering,3,Chemistry,subclass,B05B,,,B05B
+23,Chemical engineering,3,Chemistry,subclass,B06B,,,B06B
+23,Chemical engineering,3,Chemistry,prefix3,B07,,,B07#
+23,Chemical engineering,3,Chemistry,prefix3,B08,,,B08#
+23,Chemical engineering,3,Chemistry,subclass,D06B,,,D06B
+23,Chemical engineering,3,Chemistry,subclass,D06C,,,D06C
+23,Chemical engineering,3,Chemistry,subclass,D06L,,,D06L
+23,Chemical engineering,3,Chemistry,subclass,F25J,,,F25J
+23,Chemical engineering,3,Chemistry,prefix3,F26,,,F26#
+23,Chemical engineering,3,Chemistry,subclass,C14C,,,C14C
+23,Chemical engineering,3,Chemistry,subclass,H05H,,,H05H
+24,Environmental technology,3,Chemistry,subclass,A62D,,,A62D
+24,Environmental technology,3,Chemistry,maingroup,B01D,45,,B01D-045
+24,Environmental technology,3,Chemistry,maingroup,B01D,46,,B01D-046
+24,Environmental technology,3,Chemistry,maingroup,B01D,47,,B01D-047
+24,Environmental technology,3,Chemistry,maingroup,B01D,49,,B01D-049
+24,Environmental technology,3,Chemistry,maingroup,B01D,50,,B01D-050
+24,Environmental technology,3,Chemistry,maingroup,B01D,51,,B01D-051
+24,Environmental technology,3,Chemistry,maingroup,B01D,52,,B01D-052
+24,Environmental technology,3,Chemistry,maingroup,B01D,53,,B01D-053
+24,Environmental technology,3,Chemistry,prefix3,B09,,,B09#
+24,Environmental technology,3,Chemistry,subclass,B65F,,,B65F
+24,Environmental technology,3,Chemistry,prefix3,C02,,,C02#
+24,Environmental technology,3,Chemistry,subclass,F01N,,,F01N
+24,Environmental technology,3,Chemistry,subclass,F23G,,,F23G
+24,Environmental technology,3,Chemistry,subclass,F23J,,,F23J
+24,Environmental technology,3,Chemistry,subclass,G01T,,,G01T
+24,Environmental technology,3,Chemistry,maingroup,E01F,8,,E01F-008
+24,Environmental technology,3,Chemistry,subclass,A62C,,,A62C
+25,Handling,4,Mechanical engineering,subclass,B25J,,,B25J
+25,Handling,4,Mechanical engineering,subclass,B65B,,,B65B
+25,Handling,4,Mechanical engineering,subclass,B65C,,,B65C
+25,Handling,4,Mechanical engineering,subclass,B65D,,,B65D
+25,Handling,4,Mechanical engineering,subclass,B65G,,,B65G
+25,Handling,4,Mechanical engineering,subclass,B65H,,,B65H
+25,Handling,4,Mechanical engineering,prefix3,B66,,,B66#
+25,Handling,4,Mechanical engineering,prefix3,B67,,,B67#
+26,Machine tools,4,Mechanical engineering,prefix3,B21,,,B21#
+26,Machine tools,4,Mechanical engineering,prefix3,B23,,,B23#
+26,Machine tools,4,Mechanical engineering,prefix3,B24,,,B24#
+26,Machine tools,4,Mechanical engineering,subclass,B26D,,,B26D
+26,Machine tools,4,Mechanical engineering,subclass,B26F,,,B26F
+26,Machine tools,4,Mechanical engineering,prefix3,B27,,,B27#
+26,Machine tools,4,Mechanical engineering,prefix3,B30,,,B30#
+26,Machine tools,4,Mechanical engineering,subclass,B25B,,,B25B
+26,Machine tools,4,Mechanical engineering,subclass,B25C,,,B25C
+26,Machine tools,4,Mechanical engineering,subclass,B25D,,,B25D
+26,Machine tools,4,Mechanical engineering,subclass,B25F,,,B25F
+26,Machine tools,4,Mechanical engineering,subclass,B25G,,,B25G
+26,Machine tools,4,Mechanical engineering,subclass,B25H,,,B25H
+26,Machine tools,4,Mechanical engineering,subclass,B26B,,,B26B
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01B,,,F01B
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01C,,,F01C
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01D,,,F01D
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01K,,,F01K
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01L,,,F01L
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01M,,,F01M
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F01P,,,F01P
+27,"Engines, pumps, turbines",4,Mechanical engineering,prefix3,F02,,,F02#
+27,"Engines, pumps, turbines",4,Mechanical engineering,prefix3,F03,,,F03#
+27,"Engines, pumps, turbines",4,Mechanical engineering,prefix3,F04,,,F04#
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F23R,,,F23R
+27,"Engines, pumps, turbines",4,Mechanical engineering,prefix3,G21,,,G21#
+27,"Engines, pumps, turbines",4,Mechanical engineering,subclass,F99Z,,,F99Z
+28,Textile and paper machines,4,Mechanical engineering,subclass,A41H,,,A41H
+28,Textile and paper machines,4,Mechanical engineering,subclass,A43D,,,A43D
+28,Textile and paper machines,4,Mechanical engineering,subclass,A46D,,,A46D
+28,Textile and paper machines,4,Mechanical engineering,subclass,C14B,,,C14B
+28,Textile and paper machines,4,Mechanical engineering,prefix3,D01,,,D01#
+28,Textile and paper machines,4,Mechanical engineering,prefix3,D02,,,D02#
+28,Textile and paper machines,4,Mechanical engineering,prefix3,D03,,,D03#
+28,Textile and paper machines,4,Mechanical engineering,subclass,D04B,,,D04B
+28,Textile and paper machines,4,Mechanical engineering,subclass,D04C,,,D04C
+28,Textile and paper machines,4,Mechanical engineering,subclass,D04G,,,D04G
+28,Textile and paper machines,4,Mechanical engineering,subclass,D04H,,,D04H
+28,Textile and paper machines,4,Mechanical engineering,prefix3,D05,,,D05#
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06G,,,D06G
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06H,,,D06H
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06J,,,D06J
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06M,,,D06M
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06P,,,D06P
+28,Textile and paper machines,4,Mechanical engineering,subclass,D06Q,,,D06Q
+28,Textile and paper machines,4,Mechanical engineering,subclass,D99Z,,,D99Z
+28,Textile and paper machines,4,Mechanical engineering,prefix3,B31,,,B31#
+28,Textile and paper machines,4,Mechanical engineering,prefix3,D21,,,D21#
+28,Textile and paper machines,4,Mechanical engineering,prefix3,B41,,,B41#
+29,Other special machines,4,Mechanical engineering,subclass,A01B,,,A01B
+29,Other special machines,4,Mechanical engineering,subclass,A01C,,,A01C
+29,Other special machines,4,Mechanical engineering,subclass,A01D,,,A01D
+29,Other special machines,4,Mechanical engineering,subclass,A01F,,,A01F
+29,Other special machines,4,Mechanical engineering,subclass,A01G,,,A01G
+29,Other special machines,4,Mechanical engineering,subclass,A01J,,,A01J
+29,Other special machines,4,Mechanical engineering,subclass,A01K,,,A01K
+29,Other special machines,4,Mechanical engineering,subclass,A01L,,,A01L
+29,Other special machines,4,Mechanical engineering,subclass,A01M,,,A01M
+29,Other special machines,4,Mechanical engineering,subclass,A21B,,,A21B
+29,Other special machines,4,Mechanical engineering,subclass,A21C,,,A21C
+29,Other special machines,4,Mechanical engineering,prefix3,A22,,,A22#
+29,Other special machines,4,Mechanical engineering,subclass,A23N,,,A23N
+29,Other special machines,4,Mechanical engineering,subclass,A23P,,,A23P
+29,Other special machines,4,Mechanical engineering,subclass,B02B,,,B02B
+29,Other special machines,4,Mechanical engineering,subclass,C12L,,,C12L
+29,Other special machines,4,Mechanical engineering,subclass,C13C,,,C13C
+29,Other special machines,4,Mechanical engineering,subclass,C13G,,,C13G
+29,Other special machines,4,Mechanical engineering,subclass,C13H,,,C13H
+29,Other special machines,4,Mechanical engineering,prefix3,B28,,,B28#
+29,Other special machines,4,Mechanical engineering,prefix3,B29,,,B29#
+29,Other special machines,4,Mechanical engineering,subclass,C03B,,,C03B
+29,Other special machines,4,Mechanical engineering,subclass,C08J,,,C08J
+29,Other special machines,4,Mechanical engineering,subclass,B99Z,,,B99Z
+29,Other special machines,4,Mechanical engineering,prefix3,F41,,,F41#
+29,Other special machines,4,Mechanical engineering,prefix3,F42,,,F42#
+30,Thermal processes and apparatus,4,Mechanical engineering,prefix3,F22,,,F22#
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23B,,,F23B
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23C,,,F23C
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23D,,,F23D
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23H,,,F23H
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23K,,,F23K
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23L,,,F23L
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23M,,,F23M
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23N,,,F23N
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F23Q,,,F23Q
+30,Thermal processes and apparatus,4,Mechanical engineering,prefix3,F24,,,F24#
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F25B,,,F25B
+30,Thermal processes and apparatus,4,Mechanical engineering,subclass,F25C,,,F25C
+30,Thermal processes and apparatus,4,Mechanical engineering,prefix3,F27,,,F27#
+30,Thermal processes and apparatus,4,Mechanical engineering,prefix3,F28,,,F28#
+31,Mechanical elements,4,Mechanical engineering,prefix3,F15,,,F15#
+31,Mechanical elements,4,Mechanical engineering,prefix3,F16,,,F16#
+31,Mechanical elements,4,Mechanical engineering,prefix3,F17,,,F17#
+31,Mechanical elements,4,Mechanical engineering,subclass,G05G,,,G05G
+32,Transport,4,Mechanical engineering,prefix3,B60,,,B60#
+32,Transport,4,Mechanical engineering,prefix3,B61,,,B61#
+32,Transport,4,Mechanical engineering,prefix3,B62,,,B62#
+32,Transport,4,Mechanical engineering,subclass,B63B,,,B63B
+32,Transport,4,Mechanical engineering,subclass,B63C,,,B63C
+32,Transport,4,Mechanical engineering,subclass,B63G,,,B63G
+32,Transport,4,Mechanical engineering,subclass,B63H,,,B63H
+32,Transport,4,Mechanical engineering,subclass,B63J,,,B63J
+32,Transport,4,Mechanical engineering,prefix3,B64,,,B64#
+33,"Furniture, games",5,Other fields,prefix3,A47,,,A47#
+33,"Furniture, games",5,Other fields,prefix3,A63,,,A63#
+34,Other consumer goods,5,Other fields,prefix3,A24,,,A24#
+34,Other consumer goods,5,Other fields,subclass,A41B,,,A41B
+34,Other consumer goods,5,Other fields,subclass,A41C,,,A41C
+34,Other consumer goods,5,Other fields,subclass,A41D,,,A41D
+34,Other consumer goods,5,Other fields,subclass,A41F,,,A41F
+34,Other consumer goods,5,Other fields,subclass,A41G,,,A41G
+34,Other consumer goods,5,Other fields,prefix3,A42,,,A42#
+34,Other consumer goods,5,Other fields,subclass,A43B,,,A43B
+34,Other consumer goods,5,Other fields,subclass,A43C,,,A43C
+34,Other consumer goods,5,Other fields,prefix3,A44,,,A44#
+34,Other consumer goods,5,Other fields,prefix3,A45,,,A45#
+34,Other consumer goods,5,Other fields,subclass,A46B,,,A46B
+34,Other consumer goods,5,Other fields,subclass,A62B,,,A62B
+34,Other consumer goods,5,Other fields,prefix3,B42,,,B42#
+34,Other consumer goods,5,Other fields,prefix3,B43,,,B43#
+34,Other consumer goods,5,Other fields,subclass,D04D,,,D04D
+34,Other consumer goods,5,Other fields,prefix3,D07,,,D07#
+34,Other consumer goods,5,Other fields,subclass,G10B,,,G10B
+34,Other consumer goods,5,Other fields,subclass,G10C,,,G10C
+34,Other consumer goods,5,Other fields,subclass,G10D,,,G10D
+34,Other consumer goods,5,Other fields,subclass,G10F,,,G10F
+34,Other consumer goods,5,Other fields,subclass,G10G,,,G10G
+34,Other consumer goods,5,Other fields,subclass,G10H,,,G10H
+34,Other consumer goods,5,Other fields,subclass,G10K,,,G10K
+34,Other consumer goods,5,Other fields,prefix3,B44,,,B44#
+34,Other consumer goods,5,Other fields,prefix3,B68,,,B68#
+34,Other consumer goods,5,Other fields,subclass,D06F,,,D06F
+34,Other consumer goods,5,Other fields,subclass,D06N,,,D06N
+34,Other consumer goods,5,Other fields,subclass,F25D,,,F25D
+34,Other consumer goods,5,Other fields,subclass,A99Z,,,A99Z
+35,Civil engineering,5,Other fields,prefix3,E02,,,E02#
+35,Civil engineering,5,Other fields,subclass,E01B,,,E01B
+35,Civil engineering,5,Other fields,subclass,E01C,,,E01C
+35,Civil engineering,5,Other fields,subclass,E01D,,,E01D
+35,Civil engineering,5,Other fields,maingroup,E01F,1,,E01F-001
+35,Civil engineering,5,Other fields,maingroup,E01F,3,,E01F-003
+35,Civil engineering,5,Other fields,maingroup,E01F,5,,E01F-005
+35,Civil engineering,5,Other fields,maingroup,E01F,7,,E01F-007
+35,Civil engineering,5,Other fields,maingroup,E01F,9,,E01F-009
+35,Civil engineering,5,Other fields,subclass,E01F,,subgroup-range collapsed to subclass in bootstrap; PATSTAT TLS901 resolves exactly,E01F-01#
+35,Civil engineering,5,Other fields,subclass,E01H,,,E01H
+35,Civil engineering,5,Other fields,prefix3,E03,,,E03#
+35,Civil engineering,5,Other fields,prefix3,E04,,,E04#
+35,Civil engineering,5,Other fields,prefix3,E05,,,E05#
+35,Civil engineering,5,Other fields,prefix3,E06,,,E06#
+35,Civil engineering,5,Other fields,prefix3,E21,,,E21#
+35,Civil engineering,5,Other fields,subclass,E99Z,,,E99Z

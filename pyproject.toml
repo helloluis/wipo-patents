@@ -1,0 +1,18 @@
+[project]
+name = "wipo-patents"
+version = "0.1.0"
+description = "Retrieve WIPO technology-field patent data (BigQuery -> SQLite) for the wipo.b11.dev app"
+requires-python = ">=3.10"
+dependencies = [
+    "google-cloud-bigquery>=3.25",
+]
+
+[project.scripts]
+wipo-patents = "wipo_patents.pipeline:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

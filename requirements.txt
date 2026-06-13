@@ -1,0 +1,3 @@
+# Web app runtime (the data pipeline's deps live in pyproject.toml)
+fastapi>=0.115
+uvicorn[standard]>=0.30

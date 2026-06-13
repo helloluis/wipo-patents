@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WIPO Patents · Europe</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">▤</span>
+    <div>
+      <h1>WIPO Patents <span class="sep">/</span> Europe</h1>
+      <p class="tag">Granted patent families, 2000–2026 · classified by the 35 WIPO technology fields</p>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <aside class="filters">
+    <h2>Filters</h2>
+    <label>WIPO technology field
+      <select id="f-field"><option value="0">All fields</option></select>
+    </label>
+    <label>Applicant country
+      <select id="f-country"><option value="">All countries</option></select>
+    </label>
+    <label>Company contains
+      <input id="f-company" type="search" placeholder="e.g. Siemens, Bosch…" autocomplete="off">
+    </label>
+    <div class="years">
+      <label>From <input id="f-y0" type="number" min="2000" max="2026" placeholder="2000"></label>
+      <label>To <input id="f-y1" type="number" min="2000" max="2026" placeholder="2026"></label>
+    </div>
+    <div class="btns">
+      <button id="apply" class="primary">Apply</button>
+      <button id="reset">Reset</button>
+    </div>
+    <a id="csv" class="csv" href="#">⤓ Download CSV</a>
+    <p class="hint">CSV is capped at 50,000 rows. Data: Google Patents public data; company identity is the harmonized applicant.</p>
+  </aside>
+
+  <section class="content">
+    <div class="card chart-card">
+      <div class="card-head">
+        <h3 id="chart-title">Patent families by year</h3>
+        <div class="toggle" id="dim">
+          <button data-dim="year" class="on">By year</button>
+          <button data-dim="field">By field</button>
+          <button data-dim="country">By country</button>
+        </div>
+      </div>
+      <canvas id="chart" height="110"></canvas>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><h3>Patents <span id="pat-total" class="count"></span></h3></div>
+        <div class="table-wrap">
+          <table id="patents">
+            <thead><tr><th>Publication</th><th>Year</th><th>WIPO field</th><th>Company</th><th class="num">Cites</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <button id="prev">‹ Prev</button><span id="page"></span><button id="next">Next ›</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Top companies</h3></div>
+        <div class="table-wrap">
+          <table id="companies">
+            <thead><tr><th>Company</th><th>Ctry</th><th class="num">Families</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
