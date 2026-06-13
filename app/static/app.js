@@ -1,5 +1,8 @@
 const $ = s => document.querySelector(s);
 const fmt = n => (n ?? 0).toLocaleString();
+// ISO alpha-2 -> full country name via the browser's built-in region names (falls back to the code)
+const _region = (() => { try { return new Intl.DisplayNames(["en"], { type: "region" }); } catch { return null; } })();
+const countryName = cc => { if (!cc) return ""; try { return (_region && _region.of(cc)) || cc; } catch { return cc; } };
 let state = { dim: "year", offset: 0, limit: 50, total: 0 };
 let chart;
 
@@ -25,10 +28,13 @@ async function boot() {
     o.value = f.field_number; o.textContent = `${f.field_number}. ${f.field_name}`;
     $("#f-field").appendChild(o);
   }
-  for (const c of m.countries) {
-    const o = document.createElement("option"); o.value = c; o.textContent = c;
-    $("#f-country").appendChild(o);
-  }
+  m.countries
+    .map(c => ({ code: c, name: countryName(c) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach(c => {
+      const o = document.createElement("option"); o.value = c.code; o.textContent = c.name;
+      $("#f-country").appendChild(o);
+    });
   $("#f-y0").placeholder = m.year_min; $("#f-y1").placeholder = m.year_max;
   refresh();
 }
@@ -47,11 +53,12 @@ async function drawChart() {
   $("#chart-title").textContent =
     { year: "Patent families by year", field: "Top WIPO technology fields", country: "Top applicant countries" }[state.dim];
   const horizontal = state.dim !== "year";
+  const labels = data.map(d => state.dim === "country" ? countryName(d.label) : d.label);
   const valueTicks = { font: { size: 11 }, callback: kfmt };
   const catTicks = { font: { size: 11 }, autoSkip: false };
   const cfg = {
     type: "bar",
-    data: { labels: data.map(d => d.label),
+    data: { labels,
             datasets: [{ data: data.map(d => d.n), backgroundColor: "#3257d0", borderRadius: 4,
                          maxBarThickness: horizontal ? 22 : 26 }] },
     options: {
@@ -76,7 +83,7 @@ async function loadPatents() {
   const tb = $("#patents tbody"); tb.innerHTML = "";
   for (const row of r.rows) {
     const co = row.assignees[0];
-    const coName = co ? co.name + (co.country ? `<span class="cc">${co.country}</span>` : "") : "—";
+    const coName = co ? co.name + (co.country ? `<span class="cc">${countryName(co.country)}</span>` : "") : "—";
     const tr = document.createElement("tr");
     tr.innerHTML = `<td class="pub">${row.rep_publication ?? "—"}</td>
       <td>${row.filing_year}</td>
@@ -97,7 +104,7 @@ async function loadCompanies() {
   const tb = $("#companies tbody"); tb.innerHTML = "";
   for (const c of r.rows) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${c.name}</td><td>${c.country_code || "—"}</td><td class="num">${fmt(c.families)}</td>`;
+    tr.innerHTML = `<td>${c.name}</td><td>${countryName(c.country_code) || "—"}</td><td class="num">${fmt(c.families)}</td>`;
     tb.appendChild(tr);
   }
 }
