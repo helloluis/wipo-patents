@@ -21,7 +21,10 @@ h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
 .stats span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#aebbd8}
 
 main{display:grid;grid-template-columns:260px 1fr;gap:20px;padding:20px 28px;max-width:1320px;margin:0 auto}
-@media(max-width:880px){main{grid-template-columns:1fr}}
+@media(max-width:880px){main{grid-template-columns:1fr}
+  /* single-column on mobile: the filter panel must scroll normally, not stay pinned
+     (a pinned full-width sidebar gets overlapped by the chart below it) */
+  .filters{position:static;top:auto}}
 
 .filters{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;
   box-shadow:var(--shadow);align-self:start;position:sticky;top:16px}
