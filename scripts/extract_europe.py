@@ -127,49 +127,57 @@ def main():
         print(f"DRY RUN: would scan ~{job.total_bytes_processed/1024**3:,.1f} GiB")
         return
 
+    from google.cloud import bigquery_storage  # fast gRPC/Arrow streaming (vs slow REST pagination)
+
     cfg = bigquery.QueryJobConfig(maximum_bytes_billed=int(args.max_gb * 1024**3))
-    print("Running BigQuery extract (all-Europe, granted, 2000-2026, enriched)...")
-    rows = cli.query(sql, job_config=cfg).result(page_size=10_000)
+    print("Running BigQuery extract (all-Europe 2000-2026, enriched, via Storage API)...")
+    result = cli.query(sql, job_config=cfg).result()
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         out.unlink()
     con = sqlite3.connect(out)
+    con.execute("PRAGMA journal_mode=OFF")     # bulk build from scratch — re-run on failure
+    con.execute("PRAGMA synchronous=OFF")
     con.executescript(SCHEMA)
     con.executemany("INSERT OR REPLACE INTO field VALUES (?,?,?,?)",
-                    [(fn, n, s, sn) for fn, (n, s, sn) in conc.fields.items()])
+                    [(fn, nm, s, sn) for fn, (nm, s, sn) in conc.fields.items()])
     cur = con.cursor()
     n = 0
-    for row in rows:
-        fid = row["family_id"]
-        ipc = list(row["ipc_codes"])
-        cpc = list(row["cpc_codes"])
-        fields = sorted(conc.fields_for(ipc))
-        primary = conc.field_for(ipc[0]) if ipc else None
-        if primary is None and fields:
-            primary = fields[0]
-        cur.execute(
-            "INSERT OR REPLACE INTO patent_family VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (fid, row["rep_pub"], row["rep_app"],
-             row["priority_date"], row["filing_date"], row["publication_date"], row["grant_date"],
-             row["filing_year"], 1 if row["granted"] else 0, row["n_pub"], row["n_bwd"],
-             primary, conc.fields.get(primary, [None])[0] if primary else None, len(fields),
-             ipc[0] if ipc else None, "; ".join(ipc), "; ".join(cpc),
-             "; ".join(row["member_pubs"] or [])))
-        if fields:
-            w = 1.0 / len(fields)
-            cur.executemany("INSERT OR REPLACE INTO family_field VALUES (?,?,?)",
-                            [(fid, f, w) for f in fields])
-        for a in row["assignees"]:
-            cur.execute("INSERT INTO family_assignee VALUES (?,?,?)", (fid, a["name"], a["country_code"]))
-        for cc in row["inventor_countries"]:
-            cur.execute("INSERT OR REPLACE INTO family_inventor_country VALUES (?,?)", (fid, cc))
-        n += 1
-        if n % 100_000 == 0:
-            con.commit()
-            print(f"  {n:,} families")
-    con.commit()
+    bqs = bigquery_storage.BigQueryReadClient()
+    for batch in result.to_arrow_iterable(bqstorage_client=bqs):
+        c = batch.to_pydict()
+        rows_pf, rows_ff, rows_fa, rows_fi = [], [], [], []
+        for i in range(batch.num_rows):
+            fid = c["family_id"][i]
+            ipc = c["ipc_codes"][i] or []
+            cpc = c["cpc_codes"][i] or []
+            fields = sorted(conc.fields_for(ipc))
+            primary = conc.field_for(ipc[0]) if ipc else None
+            if primary is None and fields:
+                primary = fields[0]
+            rows_pf.append((
+                fid, c["rep_pub"][i], c["rep_app"][i],
+                c["priority_date"][i], c["filing_date"][i], c["publication_date"][i], c["grant_date"][i],
+                c["filing_year"][i], 1 if c["granted"][i] else 0, c["n_pub"][i], c["n_bwd"][i],
+                primary, conc.fields.get(primary, [None])[0] if primary else None, len(fields),
+                ipc[0] if ipc else None, "; ".join(ipc), "; ".join(cpc),
+                "; ".join(c["member_pubs"][i] or [])))
+            if fields:
+                w = 1.0 / len(fields)
+                rows_ff.extend((fid, f, w) for f in fields)
+            for a in (c["assignees"][i] or []):
+                rows_fa.append((fid, a["name"], a["country_code"]))
+            for cc in (c["inventor_countries"][i] or []):
+                rows_fi.append((fid, cc))
+            n += 1
+        cur.executemany("INSERT OR REPLACE INTO patent_family VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows_pf)
+        cur.executemany("INSERT OR REPLACE INTO family_field VALUES (?,?,?)", rows_ff)
+        cur.executemany("INSERT INTO family_assignee VALUES (?,?,?)", rows_fa)
+        cur.executemany("INSERT OR REPLACE INTO family_inventor_country VALUES (?,?)", rows_fi)
+        con.commit()
+        print(f"  {n:,} families")
     print(f"Loaded {n:,} families -> {out}")
     print("Creating indexes...")
     con.executescript(INDEXES)
