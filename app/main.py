@@ -200,14 +200,21 @@ def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: i
     return cached(("companies", field, country, q, y0, y1, limit), run)
 
 
+def _iso(d):
+    """YYYYMMDD int -> 'YYYY-MM-DD' (or '' if missing)."""
+    return f"{d//10000:04d}-{d//100%100:02d}-{d%100:02d}" if d else ""
+
+
 @app.get("/api/export.csv")
 def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0):
     con = db()
     join, where, params = base(field, country, q, y0, y1)
     CAP = 50000
     rows = con.execute(
-        f"""SELECT f.family_id, f.rep_publication, f.filing_year, f.primary_field_name,
-                   f.granted, f.n_publications, f.n_bwd_citations
+        f"""SELECT f.family_id, f.rep_publication, f.rep_application, f.filing_year,
+                   f.priority_date, f.filing_date, f.publication_date, f.grant_date, f.granted,
+                   f.primary_field_number, f.primary_field_name, f.ipc_main, f.ipc_codes,
+                   f.cpc_codes, f.n_publications, f.member_publications, f.n_bwd_citations
             FROM patent_family f {join} {where}
             ORDER BY f.filing_year DESC, f.family_id LIMIT {CAP}""", params).fetchall()
     fam_ids = [r["family_id"] for r in rows]
@@ -221,12 +228,18 @@ def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: 
     con.close()
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["family_id", "publication", "filing_year", "wipo_field", "granted",
-                "n_publications", "n_backward_citations", "companies"])
+    w.writerow(["family_id", "publication_number", "application_number",
+                "priority_date", "filing_date", "publication_date", "grant_date", "filing_year",
+                "granted", "wipo_field_number", "wipo_field", "ipc_main", "ipc_codes", "cpc_codes",
+                "n_family_members", "family_member_publications", "n_backward_citations",
+                "applicants"])
     for r in rows:
-        w.writerow([r["family_id"], r["rep_publication"], r["filing_year"], r["primary_field_name"],
-                    r["granted"], r["n_publications"], r["n_bwd_citations"],
-                    "; ".join(owners.get(r["family_id"], []))])
+        w.writerow([r["family_id"], r["rep_publication"], r["rep_application"],
+                    _iso(r["priority_date"]), _iso(r["filing_date"]), _iso(r["publication_date"]),
+                    _iso(r["grant_date"]), r["filing_year"], r["granted"],
+                    r["primary_field_number"], r["primary_field_name"], r["ipc_main"],
+                    r["ipc_codes"], r["cpc_codes"], r["n_publications"], r["member_publications"],
+                    r["n_bwd_citations"], "; ".join(owners.get(r["family_id"], []))])
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]), media_type="text/csv",
