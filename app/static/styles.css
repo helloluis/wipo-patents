@@ -32,8 +32,10 @@ main{display:grid;grid-template-columns:260px 1fr;gap:20px;padding:20px 28px;max
 .filters h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin-bottom:14px}
 .filters-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:14px}
 .filters-head h2{margin:0}
-.caret{border:none;background:transparent;color:var(--mut);font-size:13px;padding:4px 6px;line-height:1;transition:transform .18s}
-.caret:hover{color:var(--ink)}
+.caret{border:1px solid var(--line);background:#eef2fb;color:var(--accent);font-size:18px;
+  width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  padding:0;line-height:1;flex:none;transition:transform .18s,background .15s}
+.caret:hover{background:#dce4fb}
 .filters:not(.collapsed) .caret{transform:rotate(180deg)}
 .filters-summary{display:none;font-size:13.5px;color:var(--ink);line-height:1.45}
 .filters-summary b{color:var(--accent);font-weight:650}
