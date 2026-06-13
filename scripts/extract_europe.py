@@ -149,6 +149,9 @@ def main():
             print(f"  {n:,} families")
     con.commit()
     print(f"Loaded {n:,} families -> {out}")
+    print("Building materialized stats tables (company_stats, country_stats)...")
+    con.executescript((ROOT / "sql" / "build_stats.sql").read_text(encoding="utf-8"))
+    con.commit()
     # summary
     for label, q in [
         ("families", "SELECT COUNT(*) FROM patent_family"),

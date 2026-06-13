@@ -102,10 +102,16 @@ def meta():
 @app.get("/api/trend")
 def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
           y0: int = 0, y1: int = 0):
+    unfiltered = not (field or country or q or y0 or y1)
+
     def run():
         con = db()
         join, where, params = base(field, country, q, y0, y1)
-        if dim == "field":
+        if dim == "country" and unfiltered:
+            # served from the materialized table — instant
+            sql, params = ("SELECT country_code AS label, n_families AS n FROM country_stats "
+                           "ORDER BY n_families DESC LIMIT 15"), []
+        elif dim == "field":
             sql = (f"SELECT fd.field_name AS label, COUNT(*) AS n FROM patent_family f {join} "
                    f"JOIN field fd ON fd.field_number = f.primary_field_number {where} "
                    f"GROUP BY f.primary_field_number ORDER BY n DESC LIMIT 15")
@@ -159,8 +165,18 @@ def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int
 @app.get("/api/companies")
 def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
               limit: int = 25):
+    unfiltered = not (field or country or q or y0 or y1)
+
     def run():
         con = db()
+        if unfiltered:
+            # served from the materialized table — instant
+            rows = [{"name": r["name"], "country_code": r["country_code"], "families": r["n_families"]}
+                    for r in con.execute(
+                        "SELECT name, country_code, n_families FROM company_stats "
+                        "ORDER BY n_families DESC LIMIT ?", [limit])]
+            con.close()
+            return {"rows": rows}
         join, where, params = base(field, country, q, y0, y1)
         glue = "AND" if where else "WHERE"
         sql = (f"SELECT a2.name, a2.country_code, COUNT(DISTINCT f.family_id) AS families "
