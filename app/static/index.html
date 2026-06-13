@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WIPO Patents · Europe</title>
-<link rel="stylesheet" href="/styles.css?v=4">
+<link rel="stylesheet" href="/styles.css?v=5">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 </head>
 <body>
@@ -20,8 +20,13 @@
 </header>
 
 <main>
-  <aside class="filters">
-    <h2>Filters</h2>
+  <aside class="filters" id="filters">
+    <div class="filters-head" id="filters-head">
+      <h2>Filters</h2>
+      <button class="caret" id="caret" aria-label="Toggle filters" aria-expanded="true">▾</button>
+    </div>
+    <div class="filters-summary" id="filters-summary"></div>
+    <div class="filters-body">
     <label>WIPO technology field
       <select id="f-field"><option value="0">All fields</option></select>
     </label>
@@ -41,6 +46,7 @@
     </div>
     <a id="csv" class="csv" href="#">⤓ Download CSV</a>
     <p class="hint">CSV is capped at 50,000 rows. Data: Google Patents public data; company identity is the harmonized applicant.</p>
+    </div>
   </aside>
 
   <section class="content">
@@ -84,6 +90,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/app.js?v=4"></script>
+<script src="/app.js?v=5"></script>
 </body>
 </html>

@@ -3,8 +3,21 @@ const fmt = n => (n ?? 0).toLocaleString();
 // ISO alpha-2 -> full country name via the browser's built-in region names (falls back to the code)
 const _region = (() => { try { return new Intl.DisplayNames(["en"], { type: "region" }); } catch { return null; } })();
 const countryName = cc => { if (!cc) return ""; try { return (_region && _region.of(cc)) || cc; } catch { return cc; } };
-let state = { dim: "year", offset: 0, limit: 50, total: 0 };
+let state = { dim: "year", offset: 0, limit: 50, total: 0, applied: {} };
 let chart;
+const FIELDS = {};  // field_number -> field_name
+const esc = s => (s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function summaryHTML() {
+  const a = state.applied || {};
+  let s = `Showing all ${a.field ? `<b>${FIELDS[a.field]}</b> ` : ""}patents`;
+  if (a.country) s += ` in <b>${countryName(a.country)}</b>`;
+  if (a.q) s += ` matching “<b>${esc(a.q)}</b>”`;
+  if (a.y0 && a.y1) s += ` from <b>${a.y0}–${a.y1}</b>`;
+  else if (a.y0) s += ` from <b>${a.y0}</b> onward`;
+  else if (a.y1) s += ` up to <b>${a.y1}</b>`;
+  return s + ".";
+}
 
 function params() {
   const p = new URLSearchParams();
@@ -24,6 +37,7 @@ async function boot() {
     `<div class="s"><b>${fmt(m.total_families)}</b><span>inventions</span></div>
      <div class="s"><b>${fmt(m.total_companies)}</b><span>companies</span></div>`;
   for (const f of m.fields) {
+    FIELDS[f.field_number] = f.field_name;
     const o = document.createElement("option");
     o.value = f.field_number; o.textContent = `${f.field_number}. ${f.field_name}`;
     $("#f-field").appendChild(o);
@@ -41,8 +55,21 @@ async function boot() {
 
 async function refresh() {
   state.offset = 0;
+  state.applied = {
+    field: $("#f-field").value !== "0" ? +$("#f-field").value : 0,
+    country: $("#f-country").value,
+    q: $("#f-company").value.trim(),
+    y0: +$("#f-y0").value || 0,
+    y1: +$("#f-y1").value || 0,
+  };
+  $("#filters-summary").innerHTML = summaryHTML();
   await Promise.all([drawChart(), loadPatents(), loadCompanies()]);
   $("#csv").href = "/api/export.csv?" + params().toString();
+}
+
+function toggleFilters() {
+  const collapsed = $("#filters").classList.toggle("collapsed");
+  $("#caret").setAttribute("aria-expanded", String(!collapsed));
 }
 
 const kfmt = v => Math.abs(v) >= 1e6 ? (v/1e6).toFixed(1)+"M" : Math.abs(v) >= 1e3 ? Math.round(v/1e3)+"k" : v;
@@ -124,5 +151,7 @@ $("#dim").addEventListener("click", e => {
 });
 $("#prev").onclick = () => { if (state.offset > 0) { state.offset -= state.limit; loadPatents(); } };
 $("#next").onclick = () => { if (state.offset + state.limit < state.total) { state.offset += state.limit; loadPatents(); } };
+$("#filters-head").onclick = toggleFilters;
+$("#filters-summary").onclick = toggleFilters;
 
 boot();
