@@ -201,4 +201,45 @@ $("#modal-close").onclick = closeModal;
 $("#modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
+// curated comparable studies (deep-research, verified)
+const RESEARCH = [
+  { theme: "Patent economics & economic history", papers: [
+    { cite: "Moser, P. (2012). Innovation without Patents: Evidence from World's Fairs. Journal of Law and Economics, 55(1), 43–74.",
+      url: "https://www.journals.uchicago.edu/doi/abs/10.1086/663631" },
+    { cite: "Bottomley, S. (2014). Patenting in England, Scotland and Ireland during the Industrial Revolution, 1700–1852. Explorations in Economic History, 54, 48–63.",
+      url: "https://www.sciencedirect.com/science/article/abs/pii/S0014498314000321" },
+  ]},
+  { theme: "Schumpeterian growth & patent policy", papers: [
+    { cite: "Lu, Lai & Yu (2024). Effects of patent policy on growth and inequality: exogenous versus endogenous quality improvements. Journal of Economics, 141(1).",
+      url: "https://link.springer.com/article/10.1007/s00712-023-00843-w" },
+    { cite: "Yu & Lai (2024/25). Endogenous Innovation Scale and Patent Policy in a Monetary Schumpeterian Growth Model. Macroeconomic Dynamics, 29.",
+      url: "https://www.cambridge.org/core/journals/macroeconomic-dynamics/article/endogenous-innovation-scale-and-patent-policy-in-a-monetary-schumpeterian-growth-model/5473582887203BDB376858704F88413D" },
+    { cite: "Li, C.-W. (2008). Promoting innovation and competition with patent policy. Journal of Evolutionary Economics, 18.",
+      url: "https://link.springer.com/article/10.1007/s00191-008-0089-5" },
+  ]},
+  { theme: "ML / data-mining of patents for emerging-tech detection", papers: [
+    { cite: "Lee, Kwon, Kim & Kwon (2018). Early identification of emerging technologies: A machine learning approach using multiple patent indicators. Technological Forecasting & Social Change, 127, 291–303.",
+      url: "https://www.sciencedirect.com/science/article/abs/pii/S0040162517304778" },
+    { cite: "Kyebambe, Cheng, Lin, He & Zhang (2017). Forecasting emerging technologies: A supervised learning approach through patent analysis. Technological Forecasting & Social Change, 125, 236–244.",
+      url: "https://www.sciencedirect.com/science/article/abs/pii/S0040162516307065" },
+    { cite: "Choi & Yoon et al. (2022). Technology identification from patent texts: A novel named entity recognition method. Technological Forecasting & Social Change.",
+      url: "https://www.sciencedirect.com/science/article/abs/pii/S0040162522006813" },
+    { cite: "Li et al. (2019). Identifying the Development Trends of Emerging Technologies Using Patent Analysis and Web News Data Mining: The Case of Perovskite Solar Cell Technology. IEEE Access.",
+      url: "https://ieeexplore.ieee.org/document/8897119/" },
+    { cite: "Lee, Park & Lee (2025). A study on the monitoring of technology innovation through patent analysis. Humanities and Social Sciences Communications.",
+      url: "https://www.nature.com/articles/s41599-025-06363-w" },
+    { cite: "Liu, Shapira, Yue & Guan (2022). Mapping technological innovation dynamics in artificial intelligence domains: Evidence from a global patent analysis. PLOS ONE, 17(2), e0262050.",
+      url: "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0262050" },
+  ]},
+];
+
+function renderResearch() {
+  $("#research").innerHTML = RESEARCH.map(g => `
+    <div class="research-group">
+      <h4>${g.theme}</h4>
+      ${g.papers.map(p => `<a class="research-item" href="${p.url}" target="_blank" rel="noopener">${esc(p.cite)} <span class="ext">↗</span></a>`).join("")}
+    </div>`).join("");
+}
+
+renderResearch();
 boot();

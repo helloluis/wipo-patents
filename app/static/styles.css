@@ -111,3 +111,12 @@ a.pub:hover{text-decoration:underline}
 .chip{display:inline-block;background:#eef2fb;color:#2a3a66;border-radius:5px;padding:2px 7px;
   margin:0 5px 5px 0;font-size:12px;font-family:ui-monospace,monospace}
 @media(max-width:560px){.det dl{grid-template-columns:1fr;gap:2px 0}.det dt{margin-top:10px}}
+
+/* related research panel */
+.research-group{margin:0 0 16px}
+.research-group:last-child{margin-bottom:0}
+.research-group h4{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:650;margin:0 0 4px}
+a.research-item{display:block;font-size:13.5px;line-height:1.5;padding:7px 2px;border-bottom:1px solid #f0f2f7;color:var(--ink);text-decoration:none}
+a.research-item:last-child{border-bottom:none}
+a.research-item:hover{color:var(--accent)}
+a.research-item .ext{color:var(--accent);font-size:12px}
