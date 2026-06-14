@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WIPO Patents · Europe</title>
-<link rel="stylesheet" href="/styles.css?v=8">
+<link rel="stylesheet" href="/styles.css?v=9">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 </head>
 <body>
@@ -69,34 +69,32 @@
       <div class="chart-box"><canvas id="chart"></canvas></div>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="card-head"><h3>Patents <span id="pat-total" class="count"></span></h3></div>
-        <div class="table-wrap">
-          <table id="patents">
-            <thead><tr><th>Publication</th><th>Year</th><th>WIPO field</th><th>Company</th><th class="num">Cites</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div class="pager">
-          <button id="prev">‹ Prev</button><span id="page"></span><button id="next">Next ›</button>
-        </div>
+    <div class="card">
+      <div class="card-head"><h3>Patents <span id="pat-total" class="count"></span></h3></div>
+      <div class="table-wrap">
+        <table id="patents">
+          <thead><tr>
+            <th>Publication</th><th>Year</th><th>Status</th><th>WIPO field</th>
+            <th>IPC</th><th>CPC</th><th>Applicant</th><th class="num">Cites</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-
-      <div class="card">
-        <div class="card-head"><h3>Top companies</h3></div>
-        <div class="table-wrap">
-          <table id="companies">
-            <thead><tr><th>Company</th><th>Country</th><th class="num">Families</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="pager">
+        <button id="prev">‹ Prev</button><span id="page"></span><button id="next">Next ›</button>
       </div>
     </div>
   </section>
 </main>
 
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/app.js?v=8"></script>
+<script src="/app.js?v=9"></script>
 </body>
 </html>

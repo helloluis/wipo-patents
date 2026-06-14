@@ -156,7 +156,7 @@ def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int
             f"SELECT COUNT(*) FROM patent_family f {join} {where}", params).fetchone()[0]
         rows = con.execute(
             f"""SELECT f.family_id, f.rep_publication, f.filing_year, f.primary_field_name,
-                       f.granted, f.n_bwd_citations, f.n_publications
+                       f.granted, f.n_bwd_citations, f.n_publications, f.ipc_main, f.cpc_codes
                 FROM patent_family f {join} {where}
                 ORDER BY f.filing_year DESC, f.family_id LIMIT ? OFFSET ?""",
             params + [limit, offset]).fetchall()
@@ -177,6 +177,29 @@ def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int
             out.append(d)
         return {"total": total, "limit": limit, "offset": offset, "rows": out}
     return cached(("patents", field, country, q, y0, y1, status, limit, offset), run)
+
+
+@app.get("/api/patent")
+def patent(id: str):
+    """Everything we hold on one family — powers the detail lightbox."""
+    def run():
+        con = db()
+        row = con.execute("SELECT * FROM patent_family WHERE family_id = ?", [id]).fetchone()
+        if not row:
+            con.close()
+            return {"error": "not found"}
+        d = dict(row)
+        d["assignees"] = [dict(r) for r in con.execute(
+            "SELECT name, country_code FROM family_assignee WHERE family_id = ?", [id])]
+        d["fields"] = [dict(r) for r in con.execute(
+            """SELECT fd.field_number, fd.field_name, fd.sector_name
+               FROM family_field ff JOIN field fd ON fd.field_number = ff.field_number
+               WHERE ff.family_id = ? ORDER BY fd.field_number""", [id])]
+        d["inventor_countries"] = [r[0] for r in con.execute(
+            "SELECT country_code FROM family_inventor_country WHERE family_id = ?", [id])]
+        con.close()
+        return d
+    return cached(("patent", id), run)
 
 
 @app.get("/api/companies")
@@ -264,7 +287,6 @@ def _warm():
             for dim in ("year", "field", "country"):
                 trend(dim=dim)
             patents()
-            companies()
         except Exception:
             pass
 

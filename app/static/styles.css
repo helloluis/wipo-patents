@@ -85,3 +85,29 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px;color:var(--mut);font-size:13px}
 .field-tag{font-size:12px;color:var(--mut)}
 .loading{opacity:.5}
+
+/* patents table: status badge + code cells + clickable publication */
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.badge.granted{background:#dff3e7;color:#1d7a4d}
+.badge.pending{background:#fdeccd;color:#9a6a16}
+td.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#48506a;white-space:nowrap}
+a.pub{cursor:pointer;text-decoration:none}
+a.pub:hover{text-decoration:underline}
+
+/* detail lightbox */
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.55);display:flex;align-items:flex-start;
+  justify-content:center;padding:40px 16px;z-index:100;overflow:auto}
+.modal[hidden]{display:none}
+.modal-card{background:#fff;border-radius:14px;max-width:760px;width:100%;padding:24px 26px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative}
+.modal-close{position:absolute;top:12px;right:16px;border:none;background:transparent;font-size:26px;
+  line-height:1;color:var(--mut);cursor:pointer;padding:0}
+.modal-close:hover{color:var(--ink)}
+.det h2{font-size:18px;margin:0 36px 2px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.det .pubn{font-size:13px;color:var(--mut);font-family:ui-monospace,monospace}
+.det dl{display:grid;grid-template-columns:160px 1fr;gap:9px 18px;margin:18px 0 0;font-size:13.5px}
+.det dt{color:var(--mut);font-weight:600}
+.det dd{margin:0;line-height:1.5}
+.chip{display:inline-block;background:#eef2fb;color:#2a3a66;border-radius:5px;padding:2px 7px;
+  margin:0 5px 5px 0;font-size:12px;font-family:ui-monospace,monospace}
+@media(max-width:560px){.det dl{grid-template-columns:1fr;gap:2px 0}.det dt{margin-top:10px}}

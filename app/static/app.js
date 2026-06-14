@@ -67,7 +67,7 @@ async function refresh() {
     y1: +$("#f-y1").value || 0,
   };
   $("#filters-summary").innerHTML = summaryHTML();
-  await Promise.all([drawChart(), loadPatents(), loadCompanies()]);
+  await Promise.all([drawChart(), loadPatents()]);
   $("#csv").href = "/api/export.csv?" + params().toString();
 }
 
@@ -127,31 +127,58 @@ async function loadPatents() {
   const tb = $("#patents tbody"); tb.innerHTML = "";
   for (const row of r.rows) {
     const co = row.assignees[0];
-    const coName = co ? co.name + (co.country ? `<span class="cc">${countryName(co.country)}</span>` : "") : "—";
+    const coName = co ? esc(co.name) + (co.country ? `<span class="cc">${countryName(co.country)}</span>` : "") : "—";
+    const cpc = (row.cpc_codes || "").split("; ")[0] || "—";
+    const badge = row.granted ? '<span class="badge granted">Granted</span>' : '<span class="badge pending">Pending</span>';
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="pub">${row.rep_publication ?? "—"}</td>
+    tr.innerHTML = `<td><a class="pub" data-id="${esc(row.family_id)}">${row.rep_publication ?? "—"}</a></td>
       <td>${row.filing_year}</td>
+      <td>${badge}</td>
       <td class="field-tag">${row.primary_field_name ?? "—"}</td>
+      <td class="code">${row.ipc_main ?? "—"}</td>
+      <td class="code">${esc(cpc)}</td>
       <td>${coName}</td>
       <td class="num">${fmt(row.n_bwd_citations)}</td>`;
     tb.appendChild(tr);
   }
+  tb.querySelectorAll("a.pub").forEach(a => a.onclick = () => openPatent(a.dataset.id));
   const from = r.total ? state.offset + 1 : 0;
   $("#page").textContent = `${fmt(from)}–${fmt(Math.min(state.offset + state.limit, r.total))} of ${fmt(r.total)}`;
   $("#prev").disabled = state.offset === 0;
   $("#next").disabled = state.offset + state.limit >= r.total;
 }
 
-async function loadCompanies() {
-  const p = params(); p.set("limit", 25);
-  const r = await (await fetch("/api/companies?" + p)).json();
-  const tb = $("#companies tbody"); tb.innerHTML = "";
-  for (const c of r.rows) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${c.name}</td><td>${countryName(c.country_code) || "—"}</td><td class="num">${fmt(c.families)}</td>`;
-    tb.appendChild(tr);
-  }
+async function openPatent(id) {
+  const body = $("#modal-body");
+  body.innerHTML = "<p style='color:#6b7488'>Loading…</p>";
+  $("#modal").hidden = false;
+  const d = await (await fetch("/api/patent?id=" + encodeURIComponent(id))).json();
+  if (d.error) { body.innerHTML = "<p>Not found.</p>"; return; }
+  const iso = v => { v = +v; return v ? `${Math.floor(v / 10000)}-${String(Math.floor(v / 100) % 100).padStart(2, "0")}-${String(v % 100).padStart(2, "0")}` : "—"; };
+  const chips = s => s ? s.split("; ").filter(Boolean).map(c => `<span class="chip">${esc(c)}</span>`).join("") : "—";
+  const assignees = (d.assignees || []).map(a => `${esc(a.name)} <span class="cc">${countryName(a.country_code) || "?"}</span>`).join("<br>") || "—";
+  const fields = (d.fields || []).map(f => `${f.field_number}. ${esc(f.field_name)} <span class="field-tag">· ${esc(f.sector_name)}</span>`).join("<br>") || "—";
+  const inv = (d.inventor_countries || []).map(countryName).join(", ") || "—";
+  const badge = d.granted ? '<span class="badge granted">Granted</span>' : '<span class="badge pending">Pending</span>';
+  body.innerHTML = `<div class="det">
+    <h2>${d.rep_publication ?? "—"} ${badge}</h2>
+    <div class="pubn">Application ${d.rep_application ?? "—"} · DOCDB family ${d.family_id}</div>
+    <dl>
+      <dt>Priority date</dt><dd>${iso(d.priority_date)}</dd>
+      <dt>Filing date</dt><dd>${iso(d.filing_date)}</dd>
+      <dt>Publication date</dt><dd>${iso(d.publication_date)}</dd>
+      <dt>Grant date</dt><dd>${iso(d.grant_date)}</dd>
+      <dt>WIPO field(s)</dt><dd>${fields}</dd>
+      <dt>IPC codes</dt><dd>${chips(d.ipc_codes)}</dd>
+      <dt>CPC codes</dt><dd>${chips(d.cpc_codes)}</dd>
+      <dt>Applicant(s)</dt><dd>${assignees}</dd>
+      <dt>Inventor countries</dt><dd>${inv}</dd>
+      <dt>Backward citations</dt><dd>${fmt(d.n_bwd_citations)}</dd>
+      <dt>Family members (${d.n_publications})</dt><dd>${chips(d.member_publications)}</dd>
+    </dl>
+  </div>`;
 }
+function closeModal() { $("#modal").hidden = true; }
 
 // events
 $("#apply").onclick = refresh;
@@ -170,5 +197,8 @@ $("#prev").onclick = () => { if (state.offset > 0) { state.offset -= state.limit
 $("#next").onclick = () => { if (state.offset + state.limit < state.total) { state.offset += state.limit; loadPatents(); } };
 $("#filters-head").onclick = toggleFilters;
 $("#filters-summary").onclick = toggleFilters;
+$("#modal-close").onclick = closeModal;
+$("#modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 boot();
