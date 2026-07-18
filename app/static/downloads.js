@@ -31,17 +31,24 @@
   function row(f) {
     const el = document.createElement("div");
     el.className = "dl-row";
+    const active = f.status === "queued" || f.status === "running";
+    const failed = f.status === "failed";
+    const meta = active ? `<span class="dl-meta dl-progress">Preparing — large files can take a few minutes…</span>`
+      : failed ? `<span class="dl-meta dl-error">Failed: ${esc(f.error || "generation failed")}</span>`
+      : `<span class="dl-meta">${fmtDate(f.created)} · ${(f.rows ?? 0).toLocaleString()} rows · ${fmtSize(f.size)}</span>`;
+    const name = active || failed ? `<span class="dl-name dl-name-pending">${esc(f.name)}</span>`
+      : `<a class="dl-name" href="/api/downloads/${f.id}/file" title="Download">${esc(f.name)}</a>`;
+    const dlBtn = active || failed ? ""
+      : `<a class="dl-btn" href="/api/downloads/${f.id}/file" title="Download" aria-label="Download ${esc(f.name)}">⤓</a>`;
+    const renameBtn = active ? ""
+      : `<button class="dl-btn dl-rename" title="Rename" aria-label="Rename ${esc(f.name)}">✎</button>`;
     el.innerHTML = `
-      <div class="dl-main">
-        <a class="dl-name" href="/api/downloads/${f.id}/file" title="Download">${esc(f.name)}</a>
-        <span class="dl-meta">${fmtDate(f.created)} · ${(f.rows ?? 0).toLocaleString()} rows · ${fmtSize(f.size)}</span>
-      </div>
+      <div class="dl-main">${name}${meta}</div>
       <div class="dl-actions">
-        <a class="dl-btn" href="/api/downloads/${f.id}/file" title="Download" aria-label="Download ${esc(f.name)}">⤓</a>
-        <button class="dl-btn dl-rename" title="Rename" aria-label="Rename ${esc(f.name)}">✎</button>
+        ${dlBtn}${renameBtn}
         <button class="dl-btn dl-del" title="Delete" aria-label="Delete ${esc(f.name)}">🗑</button>
       </div>`;
-    el.querySelector(".dl-rename").onclick = () => rename(el, f);
+    if (!active) el.querySelector(".dl-rename").onclick = () => rename(el, f);
     el.querySelector(".dl-del").onclick = async () => {
       if (!await popup(`Delete “${f.name}”? This can't be undone.`)) return;
       const r = await fetch(`/api/downloads/${f.id}`, { method: "DELETE" });
@@ -78,6 +85,7 @@
     };
   }
 
+  let pollTimer = null;
   async function refresh() {
     let files = [];
     try { files = (await (await fetch("/api/downloads")).json()).files || []; } catch (e) {}
@@ -85,6 +93,10 @@
     empty.hidden = files.length > 0;
     list.innerHTML = "";
     files.forEach(f => list.appendChild(row(f)));
+    // poll while any file is still being generated
+    clearTimeout(pollTimer);
+    if (files.some(f => f.status === "queued" || f.status === "running"))
+      pollTimer = setTimeout(refresh, 3000);
   }
 
   window.refreshDownloads = refresh;   // chat.js calls this after the assistant creates a file

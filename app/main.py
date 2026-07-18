@@ -14,8 +14,10 @@ import csv
 import io
 import json
 import os
+import queue
 import re
 import secrets
+import threading
 import time
 import urllib.request
 from collections import OrderedDict
@@ -441,7 +443,7 @@ def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: 
 DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR")
                     or Path(__file__).resolve().parent.parent / "data" / "downloads")
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-DL_ROW_CAP = 50_000      # same cap as the sidebar CSV export
+DL_ROW_CAP = 500_000    # assistant exports run in the background, so they can be large
 MAX_DL_FILES = 200       # disk-full guard for this public endpoint
 _ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
@@ -488,14 +490,16 @@ def _dl_meta(fid):
 
 
 def _dl_list():
-    """All stored files, newest first (reverse chronological for the Downloads section)."""
+    """All stored files, newest first (reverse chronological for the Downloads section).
+    Includes queued/running/failed jobs (their .csv doesn't exist yet / any more)."""
     out = []
     for p in DOWNLOAD_DIR.glob("*.json"):
         m = _dl_meta(p.stem)
-        csvp = DOWNLOAD_DIR / f"{p.stem}.csv"
-        if not m or not csvp.exists():
+        if not m:
             continue
-        m["size"] = csvp.stat().st_size
+        csvp = DOWNLOAD_DIR / f"{p.stem}.csv"
+        if csvp.exists():
+            m["size"] = csvp.stat().st_size
         out.append(m)
     out.sort(key=lambda m: m.get("created", ""), reverse=True)
     return out
@@ -523,6 +527,8 @@ def downloads_list():
 
 @app.post("/api/downloads")
 def downloads_create(spec: _DlSpec, request: Request):
+    """Validate the spec, persist a queued job, return immediately — generation runs on the
+    background worker (large exports can take minutes; the UI polls /api/downloads)."""
     if not _rate_ok(_client_ip(request), _DL_HITS, limit=10, window=60):
         return JSONResponse({"error": "Too many files — please wait a minute."}, status_code=429)
     columns = list(dict.fromkeys(spec.columns))
@@ -537,57 +543,133 @@ def downloads_create(spec: _DlSpec, request: Request):
             return 0
 
     f = spec.filters if isinstance(spec.filters, dict) else {}
-    field = _int(f.get("field"), 0, 99)
-    y0, y1 = _int(f.get("y0")), _int(f.get("y1"))
-    status = f.get("status") if f.get("status") in ("granted", "application") else ""
-    country = re.sub(r"[^A-Za-z]", "", str(f.get("country") or ""))[:3].upper()
-    q = str(f.get("q") or "")[:200]
-    ipc = re.sub(r"[^A-Za-z0-9]", "", str(f.get("ipc") or ""))[:20].upper()
-    cpc = re.sub(r"[^A-Za-z0-9]", "", str(f.get("cpc") or ""))[:20].upper()
-    limit = max(1, min(DL_ROW_CAP, spec.limit)) if spec.limit else DL_ROW_CAP
     if len(_dl_list()) >= MAX_DL_FILES:
         return JSONResponse({"error": f"Storage is full ({MAX_DL_FILES} files) — "
                              "delete some in the Downloads section first."}, status_code=429)
-
-    want_applicants = "applicants" in columns
-    sql_cols = [EXPORT_COLUMNS[c] for c in columns if c != "applicants"]
-    if want_applicants and "family_id" not in columns:
-        sql_cols.append("f.family_id")   # needed to key the applicant aggregation
-    join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
-    if "n_forward_citations" in columns:
-        join += " LEFT JOIN forward_citations fc ON fc.family_id = f.family_id"
-    try:
-        con = db()
-        rows = con.execute(
-            f"SELECT {', '.join(sql_cols)} FROM patent_family f {join} {where} "
-            "ORDER BY f.filing_year DESC, f.family_id LIMIT %s", params + [limit]).fetchall()
-        owners = {}
-        if want_applicants and rows:
-            fam_ids = [r["family_id"] for r in rows]
-            for r in con.execute(
-                "SELECT family_id, name, country_code FROM family_assignee WHERE family_id = ANY(%s)",
-                [fam_ids]):
-                owners.setdefault(r["family_id"], []).append(f'{r["name"]} ({r["country_code"]})')
-        con.close()
-    except Exception:
-        return JSONResponse({"error": "that query failed — try narrower filters or fewer columns"},
-                            status_code=400)
-
     fid = secrets.token_hex(8)
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(columns)
-    for r in rows:
-        w.writerow(["; ".join(owners.get(r["family_id"], [])) if c == "applicants"
-                    else _iso(r[c]) if c in _DATE_COLS else r[c] for c in columns])
-    (DOWNLOAD_DIR / f"{fid}.csv").write_text(buf.getvalue())
-    meta = {"id": fid, "name": _safe_name(spec.name), "rows": len(rows), "columns": columns,
-            "filters": {k: v for k, v in {"field": field, "country": country, "q": q, "y0": y0,
-                                          "y1": y1, "status": status, "ipc": ipc, "cpc": cpc}.items() if v},
+    meta = {"id": fid, "name": _safe_name(spec.name), "status": "queued", "columns": columns,
+            "limit": max(1, min(DL_ROW_CAP, spec.limit)) if spec.limit else DL_ROW_CAP,
+            "filters": {k: v for k, v in {
+                "field": _int(f.get("field"), 0, 99),
+                "country": re.sub(r"[^A-Za-z]", "", str(f.get("country") or ""))[:3].upper(),
+                "q": str(f.get("q") or "")[:200],
+                "y0": _int(f.get("y0")), "y1": _int(f.get("y1")),
+                "status": f.get("status") if f.get("status") in ("granted", "application") else "",
+                "ipc": re.sub(r"[^A-Za-z0-9]", "", str(f.get("ipc") or ""))[:20].upper(),
+                "cpc": re.sub(r"[^A-Za-z0-9]", "", str(f.get("cpc") or ""))[:20].upper(),
+            }.items() if v},
             "created": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     (DOWNLOAD_DIR / f"{fid}.json").write_text(json.dumps(meta))
-    meta["size"] = (DOWNLOAD_DIR / f"{fid}.csv").stat().st_size
+    _DL_JOBS.put(dict(meta))
     return meta
+
+
+# ---- background CSV generation (single worker: serializes DB load) -------------------
+_DL_JOBS = queue.SimpleQueue()
+
+
+def _dl_write_batch(w, batch, columns, con):
+    """Write one chunk of rows; resolves applicants for just these family_ids (the ANY() lookup
+    costs ~1.5 ms/family on Neon's networked storage, so batching bounds each statement)."""
+    owners = {}
+    if "applicants" in columns:
+        fam_ids = [r["family_id"] for r in batch]
+        for r in con.execute(
+            "SELECT family_id, name, country_code FROM family_assignee WHERE family_id = ANY(%s)",
+            [fam_ids]):
+            owners.setdefault(r["family_id"], []).append(f'{r["name"]} ({r["country_code"]})')
+    for r in batch:
+        w.writerow(["; ".join(owners.get(r["family_id"], [])) if c == "applicants"
+                    else _iso(r[c]) if c in _DATE_COLS else r[c] for c in columns])
+    return len(batch)
+
+
+def _dl_run(job):
+    fid = job["id"]
+    metap = DOWNLOAD_DIR / f"{fid}.json"
+    if not metap.exists():
+        return                                    # deleted before the worker got to it
+    m = _dl_meta(fid); m["status"] = "running"; metap.write_text(json.dumps(m))
+    tmp = DOWNLOAD_DIR / f"{fid}.csv.tmp"
+    con = None
+    try:
+        f = job["filters"]
+        columns = job["columns"]
+        sql_cols = [EXPORT_COLUMNS[c] for c in columns if c != "applicants"]
+        if "applicants" in columns and "family_id" not in columns:
+            sql_cols.append("f.family_id")        # keys the applicant aggregation
+        join, where, params = base(f.get("field", 0), f.get("country", ""), f.get("q", ""),
+                                   f.get("y0", 0), f.get("y1", 0), f.get("status", ""),
+                                   f.get("ipc", ""), f.get("cpc", ""))
+        if "n_forward_citations" in columns:
+            join += " LEFT JOIN forward_citations fc ON fc.family_id = f.family_id"
+        # NOT autocommit: one explicit transaction pins the Neon pooler backend, so SET LOCAL
+        # sticks (role default is 35 s) and the server-side cursor stays valid between fetches.
+        # No ORDER BY — sorting a multi-million-row candidate set blows any statement timeout;
+        # analysis files don't need row order (she sorts in R/Stata/Excel).
+        con = psycopg.connect(DSN, row_factory=dict_row, connect_timeout=30)
+        con.execute("SET LOCAL statement_timeout = '180000'")
+        cur = con.cursor(name=f"dl_{fid}")
+        cur.itersize = 5000
+        cur.execute(f"SELECT {', '.join(sql_cols)} FROM patent_family f {join} {where} "
+                    f"LIMIT {job['limit']}", params)
+        n = 0
+        with open(tmp, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(columns)
+            batch = []
+            for row in cur:
+                batch.append(row)
+                if len(batch) >= 10_000:
+                    n += _dl_write_batch(w, batch, columns, con)
+                    batch.clear()
+            if batch:
+                n += _dl_write_batch(w, batch, columns, con)
+        con.commit()
+        con.close(); con = None
+        if not metap.exists():                    # deleted while running
+            tmp.unlink(missing_ok=True)
+            return
+        os.replace(tmp, DOWNLOAD_DIR / f"{fid}.csv")   # atomic: never a half-written CSV
+        m = _dl_meta(fid) or {}
+        m.update(status="done", rows=n,
+                 finished=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        metap.write_text(json.dumps(m))
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        m = _dl_meta(fid)
+        if m is not None:
+            m.update(status="failed",
+                     error="generation failed — try narrower filters or fewer columns")
+            metap.write_text(json.dumps(m))
+    finally:
+        if con is not None:
+            con.close()
+
+
+def _dl_worker():
+    while True:
+        job = _DL_JOBS.get()
+        try:
+            _dl_run(job)
+        except Exception:
+            pass                                  # _dl_run records failures itself
+
+
+def _dl_sweep_stale():
+    """At (re)start: in-memory queue is empty, so any job still marked queued/running died with
+    the last process — mark it failed and drop its partial file."""
+    for p in DOWNLOAD_DIR.glob("*.json"):
+        m = _dl_meta(p.stem)
+        if m and m.get("status") in ("queued", "running"):
+            m.update(status="failed", error="interrupted by a server restart — please re-create it")
+            p.write_text(json.dumps(m))
+    for t in DOWNLOAD_DIR.glob("*.csv.tmp"):
+        t.unlink(missing_ok=True)
+
+
+_dl_sweep_stale()
+threading.Thread(target=_dl_worker, daemon=True).start()
 
 
 @app.api_route("/api/downloads/{fid}/file", methods=["GET", "HEAD"])
@@ -605,7 +687,7 @@ def downloads_rename(fid: str, body: _DlRename):
     if not _ID_RE.match(fid or ""):
         return _dl_not_found()
     m = _dl_meta(fid)
-    if not m or not (DOWNLOAD_DIR / f"{fid}.csv").exists():
+    if not m:
         return _dl_not_found()
     m["name"] = _safe_name(body.name)
     (DOWNLOAD_DIR / f"{fid}.json").write_text(json.dumps(m))
@@ -616,10 +698,11 @@ def downloads_rename(fid: str, body: _DlRename):
 def downloads_delete(fid: str):
     if not _ID_RE.match(fid or ""):
         return _dl_not_found()
-    csvp, metap = DOWNLOAD_DIR / f"{fid}.csv", DOWNLOAD_DIR / f"{fid}.json"
-    existed = csvp.exists() or metap.exists()
-    csvp.unlink(missing_ok=True)
-    metap.unlink(missing_ok=True)
+    paths = [DOWNLOAD_DIR / f"{fid}.csv", DOWNLOAD_DIR / f"{fid}.json",
+             DOWNLOAD_DIR / f"{fid}.csv.tmp"]
+    existed = any(p.exists() for p in paths)
+    for p in paths:
+        p.unlink(missing_ok=True)
     return {"ok": True} if existed else _dl_not_found()
 
 
@@ -701,10 +784,14 @@ wipo_field, ipc_main, ipc_codes, cpc_codes, n_family_members, family_member_publ
 n_backward_citations, n_forward_citations, applicants. "filters" mirror the website filters \
 (field = WIPO field number 1–35 or 0; country = ISO-2 code; q = company name contains; y0/y1 = \
 filing-year range, 0 = unbounded; status = "granted" | "application" | ""; ipc/cpc = class prefixes). \
-Row cap is 50,000 — if she needs more, suggest splitting by year ranges or point her to the bulk file. \
-Emit at most ONE csv block per reply, only when she actually wants a file, and keep all prose OUTSIDE \
-the block. The file appears in the "Downloads" section at the bottom of the page — tell her that. \
-Do NOT emit a csv block for code she should run herself (R/Stata/SQL still go in normal code blocks).
+Row cap is 500,000 — if she needs more, suggest splitting by year ranges or point her to the bulk file. \
+Files are generated in the BACKGROUND: small ones finish in seconds; hundreds of thousands of rows can \
+take a few minutes — the file shows "Preparing…" in the Downloads section until it's ready. Rows are \
+NOT sorted (she can sort in R/Stata/Excel). The "applicants" column needs a per-family lookup and makes \
+BIG exports much slower — suggest it for smaller sets. Emit at most ONE csv block per reply, only when \
+she actually wants a file, and keep all prose OUTSIDE the block. The file appears in the "Downloads" \
+section at the bottom of the page — tell her that. Do NOT emit a csv block for code she should run \
+herself (R/Stata/SQL still go in normal code blocks).
 
 HOW TO HELP:
 - R/Stata questions → give copy-paste-ready code in ```r or ```stata fenced blocks, then a one-line note.
@@ -784,8 +871,6 @@ async def chat(request: Request):
 def _warm():
     # warm meta + default landing views in the background so the service is ready
     # immediately on (re)start; the first visitor during warm-up just computes live.
-    import threading
-
     def job():
         try:
             meta()

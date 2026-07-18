@@ -200,6 +200,9 @@ a.dl-name:hover{text-decoration:underline}
 .dl-edit{width:100%;padding:7px 9px;border:1px solid var(--accent2);border-radius:8px;
   font-size:13.5px;color:var(--ink);background:#fbfcfe}
 .dl-edit:focus{outline:none;box-shadow:0 0 0 3px rgba(91,124,240,.15)}
+.dl-name-pending{color:var(--ink)}
+.dl-progress{color:var(--accent);font-style:italic}
+.dl-error{color:#c0392b}
 @media(max-width:560px){.dl-row{align-items:flex-start}.dl-actions{padding-top:2px}}
 
 /* ── confirmation popup ───────────────────────────────────────────────────── */

@@ -55,8 +55,9 @@
         const d = await r.json().catch(() => ({}));
         if (r.ok) {
           window.refreshDownloads && window.refreshDownloads();
-          note = `📄 **${d.name}** is ready — ${(d.rows ?? 0).toLocaleString()} rows. ` +
-            `It's in the **Downloads** section at the bottom of the page (or [download it now](/api/downloads/${d.id}/file)).`;
+          note = `📄 **${d.name}** is being prepared in the background — it'll show up in the ` +
+            `**Downloads** section at the bottom of the page when it's ready ` +
+            `(large files can take a few minutes).`;
         } else {
           note = `⚠️ Couldn't create the file: ${d.error || ("error " + r.status)}`;
         }
