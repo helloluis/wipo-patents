@@ -9,6 +9,7 @@ data/*.sqlite
 data/*.sqlite-*
 data/export/
 data/*.log
+data/downloads/
 *.parquet
 *.gz
 *.sha256

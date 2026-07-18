@@ -14,6 +14,8 @@ function summaryHTML() {
   let s = `Showing all ${st}${a.field ? `<b>${FIELDS[a.field]}</b> ` : ""}patents`;
   if (a.country) s += ` in <b>${countryName(a.country)}</b>`;
   if (a.q) s += ` matching “<b>${esc(a.q)}</b>”`;
+  if (a.ipc) s += ` · IPC <b>${esc(a.ipc.toUpperCase())}</b>`;
+  if (a.cpc) s += ` · CPC <b>${esc(a.cpc.toUpperCase())}</b>`;
   if (a.y0 && a.y1) s += ` from <b>${a.y0}–${a.y1}</b>`;
   else if (a.y0) s += ` from <b>${a.y0}</b> onward`;
   else if (a.y1) s += ` up to <b>${a.y1}</b>`;
@@ -24,14 +26,35 @@ function params() {
   const p = new URLSearchParams();
   const field = $("#f-field").value, country = $("#f-country").value,
         q = $("#f-company").value.trim(), y0 = $("#f-y0").value, y1 = $("#f-y1").value,
-        status = $("#f-status").value;
+        status = $("#f-status").value,
+        ipc = $("#f-ipc").value.trim(), cpc = $("#f-cpc").value.trim();
   if (field && field !== "0") p.set("field", field);
   if (status) p.set("status", status);
   if (country) p.set("country", country);
   if (q) p.set("q", q);
+  if (ipc) p.set("ipc", ipc);
+  if (cpc) p.set("cpc", cpc);
   if (y0) p.set("y0", y0);
   if (y1) p.set("y1", y1);
   return p;
+}
+
+// --- shareable URL state: reflect the applied filters (+ chart dim) into ?query --------
+function writeURL() {
+  const p = params();
+  if (state.dim !== "year") p.set("dim", state.dim);
+  const qs = p.toString();
+  history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+}
+
+function readURL() {
+  const p = new URLSearchParams(location.search);
+  const set = (sel, key) => { if (p.has(key)) $(sel).value = p.get(key); };
+  set("#f-field", "field"); set("#f-status", "status"); set("#f-country", "country");
+  set("#f-company", "q"); set("#f-ipc", "ipc"); set("#f-cpc", "cpc");
+  set("#f-y0", "y0"); set("#f-y1", "y1");
+  if (p.has("dim")) state.dim = p.get("dim");
+  [...$("#dim").children].forEach(b => b.classList.toggle("on", b.dataset.dim === state.dim));
 }
 
 async function boot() {
@@ -52,7 +75,16 @@ async function boot() {
       const o = document.createElement("option"); o.value = c.code; o.textContent = c.name;
       $("#f-country").appendChild(o);
     });
+  const fillList = (sel, codes) => {
+    const dl = $(sel);
+    (codes || []).forEach(code => {
+      const o = document.createElement("option"); o.value = code; dl.appendChild(o);
+    });
+  };
+  fillList("#ipc-list", m.ipc_classes);
+  fillList("#cpc-list", m.cpc_classes);
   $("#f-y0").placeholder = m.year_min; $("#f-y1").placeholder = m.year_max;
+  readURL();   // restore any filters/dim shared via the URL before the first render
   refresh();
 }
 
@@ -63,10 +95,13 @@ async function refresh() {
     status: $("#f-status").value,
     country: $("#f-country").value,
     q: $("#f-company").value.trim(),
+    ipc: $("#f-ipc").value.trim(),
+    cpc: $("#f-cpc").value.trim(),
     y0: +$("#f-y0").value || 0,
     y1: +$("#f-y1").value || 0,
   };
   $("#filters-summary").innerHTML = summaryHTML();
+  writeURL();
   await Promise.all([drawChart(), loadPatents()]);
   $("#csv").href = "/api/export.csv?" + params().toString();
 }
@@ -184,13 +219,16 @@ function closeModal() { $("#modal").hidden = true; }
 $("#apply").onclick = refresh;
 $("#reset").onclick = () => {
   $("#f-field").value = "0"; $("#f-status").value = ""; $("#f-country").value = "";
-  $("#f-company").value = ""; $("#f-y0").value = ""; $("#f-y1").value = ""; refresh();
+  $("#f-company").value = ""; $("#f-ipc").value = ""; $("#f-cpc").value = "";
+  $("#f-y0").value = ""; $("#f-y1").value = ""; refresh();
 };
-$("#f-company").addEventListener("keydown", e => { if (e.key === "Enter") refresh(); });
+["#f-company", "#f-ipc", "#f-cpc"].forEach(sel =>
+  $(sel).addEventListener("keydown", e => { if (e.key === "Enter") refresh(); }));
 $("#dim").addEventListener("click", e => {
   if (e.target.tagName !== "BUTTON") return;
   state.dim = e.target.dataset.dim;
   [...$("#dim").children].forEach(b => b.classList.toggle("on", b === e.target));
+  writeURL();
   drawChart();
 });
 $("#prev").onclick = () => { if (state.offset > 0) { state.offset -= state.limit; loadPatents(); } };

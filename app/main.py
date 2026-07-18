@@ -1,40 +1,73 @@
 """
-wipo-patents web app — public, read-only query UI over the Europe SQLite dataset.
+wipo-patents web app — public, read-only query UI over the patent dataset on Neon Postgres.
 
-Run locally:   uvicorn app.main:app --reload   (from repo root, venv active)
-DB path:       WIPO_DB env var, default data/europe.sqlite
+Run locally:   NEON_DSN='postgresql://.../neondb?sslmode=require' uvicorn app.main:app --reload
+Data:          Neon Postgres (single source of truth; the website + Jannie's R/Stata share it).
 
 Performance model: the data is static and read-only, so every endpoint result is cached
-in-process (shared across requests; run with a single uvicorn worker). Country/company
-filters are driven from the assignee index (fast); field/year filters hit patent_family
-directly. The landing-page views are warmed at startup.
+in-process (shared across requests; run with a single uvicorn worker). Filtered queries are
+driven from the most selective index (family_class range / family_country); the landing-page
+views are warmed at startup. Neon scale-to-zero means the FIRST query after an idle gap pays a
+cold-start (~few s) while the compute resumes — acceptable for a single-user research tool.
 """
 import csv
 import io
+import json
 import os
-import sqlite3
+import re
+import secrets
+import time
+import urllib.request
 from collections import OrderedDict
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+import psycopg
+from psycopg.rows import dict_row
+
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
-ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = os.environ.get("WIPO_DB", str(ROOT / "data" / "europe.sqlite"))
+# Hard cap on any single query's run time (Postgres statement_timeout) — a runaway/too-broad
+# query is aborted instead of hanging the worker.
+STMT_TIMEOUT_MS = 35_000
 
-app = FastAPI(title="WIPO Patents — Europe")
+DSN = os.environ.get("NEON_DSN") or os.environ.get("WIPO_DSN")
+if not DSN:
+    raise RuntimeError("NEON_DSN env var (Neon Postgres connection string) is required")
+
+# ---- AI research assistant (server-side proxy to Fireworks; API key never reaches the browser) ---
+FIREWORKS_KEY = os.environ.get("FIREWORKS_API_KEY", "")
+FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "accounts/fireworks/models/qwen3p7-plus")
+
+app = FastAPI(title="WIPO Patents — Worldwide")
 
 
-@app.middleware("http")
-async def _cache_headers(request, call_next):
-    # HTML/CSS/JS: revalidate every load (cheap via ETag) so deploys propagate immediately
-    # instead of being stuck in aggressive mobile caches.
-    resp = await call_next(request)
-    path = request.url.path
-    if path == "/" or path.endswith((".html", ".css", ".js")):
-        resp.headers["Cache-Control"] = "no-cache"
-    return resp
+class _CacheHeaders:
+    """Pure-ASGI middleware adding Cache-Control:no-cache to html/css/js so deploys propagate.
+    Pure ASGI (NOT BaseHTTPMiddleware) so it never buffers streaming responses like /api/chat."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        p = scope.get("path", "")
+        tag = p == "/" or p.endswith((".html", ".css", ".js"))
+
+        async def send_wrap(message):
+            if tag and message["type"] == "http.response.start":
+                message.setdefault("headers", []).append((b"cache-control", b"no-cache"))
+            await send(message)
+
+        await self.app(scope, receive, send_wrap)
+
+
+app.add_middleware(_CacheHeaders)
 
 # ---- tiny static-data cache (correct because the DB never changes) -------------------
 _CACHE = OrderedDict()
@@ -53,38 +86,110 @@ def cached(key, fn):
 
 
 def db():
-    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro&immutable=1", uri=True)
-    con.row_factory = sqlite3.Row
-    return con
+    # per-request connection (autocommit read-only). statement_timeout is set as a role default
+    # (ALTER ROLE app_ro SET statement_timeout) — Neon's pooler rejects it as a startup param.
+    # connect_timeout covers a Neon cold-start resume; dict_row makes rows dict-accessible.
+    return psycopg.connect(DSN, autocommit=True, row_factory=dict_row, connect_timeout=30)
 
 
-def base(field, country, q, y0, y1, status=""):
-    """Return (join, where_sql, params) yielding DISTINCT matching families efficiently.
+def _range(s):
+    """A typed IPC/CPC class prefix → an indexable [lo, hi) range so the family_class index is
+    used ('F21' → ['F21','F22'))."""
+    p = s.upper().replace(" ", "")
+    return p, p[:-1] + chr(ord(p[-1]) + 1)
 
-    Country/company → a deduped family_id subquery off the assignee index.
-    Field/year/status → direct predicates on patent_family.
+
+def base(field, country, q, y0, y1, status="", ipc="", cpc=""):
+    """Return (join, where_sql, params) yielding matching families efficiently.
+
+    Driver selection: the most selective indexed filter drives (a JOIN subquery off its index);
+    the rest become EXISTS probes. IPC/CPC use a range scan on family_class; country uses the
+    family_country index — as the driver when it's the only selective filter, otherwise as an
+    EXISTS so the narrower class/field filter can drive instead.
     """
-    join, where, params = "", [], []
-    sub, sparams = [], []
+    joins, jparams, wheres, wparams = [], [], [], []
+    gflag = 1 if status == "granted" else 0 if status == "application" else None
+    class_present = bool(ipc or cpc)
+    for scheme, val in (("ipc", ipc), ("cpc", cpc)):
+        if val:
+            lo, hi = _range(val)
+            joins.append(f"JOIN (SELECT DISTINCT family_id FROM family_class WHERE scheme = '{scheme}' "
+                         f"AND code >= %s AND code < %s) m{scheme} ON m{scheme}.family_id = f.family_id")
+            jparams += [lo, hi]
     if country:
-        sub.append("country_code = ?"); sparams.append(country)
+        cw, cp = ["country_code = %s"], [country]
+        if gflag is not None:
+            cw.append("granted = %s"); cp.append(gflag)
+        if y0:
+            cw.append("filing_year >= %s"); cp.append(y0)
+        if y1:
+            cw.append("filing_year <= %s"); cp.append(y1)
+        if class_present or field:
+            cw[0] = "fcn.country_code = %s"  # qualify for the correlated EXISTS
+            wheres.append(f"EXISTS (SELECT 1 FROM family_country fcn WHERE fcn.family_id = f.family_id "
+                          f"AND {' AND '.join(cw)})")
+            wparams += cp
+        else:
+            joins.append(f"JOIN (SELECT DISTINCT family_id FROM family_country "
+                         f"WHERE {' AND '.join(cw)}) mco ON mco.family_id = f.family_id")
+            jparams += cp
     if q:
-        sub.append("name LIKE ?"); sparams.append(f"%{q.upper()}%")
-    if sub:
-        join = (f"JOIN (SELECT family_id FROM family_assignee WHERE {' AND '.join(sub)} "
-                f"GROUP BY family_id) m ON m.family_id = f.family_id")
-        params += sparams
+        joins.append("JOIN (SELECT family_id FROM family_assignee WHERE name LIKE %s "
+                     "GROUP BY family_id) mq ON mq.family_id = f.family_id")
+        jparams.append(f"%{q.upper()}%")
     if field:
-        where.append("f.primary_field_number = ?"); params.append(field)
+        wheres.append("f.primary_field_number = %s"); wparams.append(field)
     if status == "granted":
-        where.append("f.granted = 1")
+        wheres.append("f.granted = 1")
     elif status == "application":
-        where.append("f.granted = 0")
+        wheres.append("f.granted = 0")
     if y0:
-        where.append("f.filing_year >= ?"); params.append(y0)
+        wheres.append("f.filing_year >= %s"); wparams.append(y0)
     if y1:
-        where.append("f.filing_year <= ?"); params.append(y1)
-    return join, (("WHERE " + " AND ".join(where)) if where else ""), params
+        wheres.append("f.filing_year <= %s"); wparams.append(y1)
+    join = " ".join(joins)
+    where = ("WHERE " + " AND ".join(wheres)) if wheres else ""
+    return join, where, jparams + wparams
+
+
+def _candidate(field, country, q, y0, y1, status, ipc, cpc):
+    """Family-level candidate set for a fast COUNT: (sql, params, needs_pf).
+
+    `sql` is the INTERSECT of the class/country/company filters selecting DISTINCT family_id,
+    with status+year folded into family_country when a country filter is present. Counting this
+    directly avoids joining the 7.86M-row patent_family (which, on Neon's networked storage, means
+    thousands of page fetches). `needs_pf` is True when a patent_family column is still required
+    (a field filter, or status/year with no country candidate to carry them) — then fall back to
+    the base() join. Returns (None, [], True) when there is no family-level filter at all.
+    """
+    gflag = 1 if status == "granted" else 0 if status == "application" else None
+    parts, params = [], []
+    for scheme, val in (("ipc", ipc), ("cpc", cpc)):
+        if val:
+            lo, hi = _range(val)
+            parts.append("SELECT DISTINCT family_id FROM family_class "
+                         "WHERE scheme = %s AND code >= %s AND code < %s")
+            params += [scheme, lo, hi]
+    carries_yr = False
+    if country:
+        cw, cp = ["country_code = %s"], [country]
+        if gflag is not None:
+            cw.append("granted = %s"); cp.append(gflag)
+        if y0:
+            cw.append("filing_year >= %s"); cp.append(y0)
+        if y1:
+            cw.append("filing_year <= %s"); cp.append(y1)
+        parts.append(f"SELECT DISTINCT family_id FROM family_country WHERE {' AND '.join(cw)}")
+        params += cp
+        carries_yr = True
+    if q:
+        parts.append("SELECT family_id FROM family_assignee WHERE name LIKE %s GROUP BY family_id")
+        params.append(f"%{q.upper()}%")
+    if not parts:
+        return None, [], True
+    needs_pf = bool(field) or (not carries_yr and (gflag is not None or y0 or y1))
+    sql = "(" + " INTERSECT ".join(parts) + ")"
+    return sql, params, needs_pf
 
 
 # ---- meta (static facets) ------------------------------------------------------------
@@ -93,17 +198,27 @@ _META = {}
 
 def _compute_meta():
     con = db()
-    fields = [dict(r) for r in con.execute(
-        "SELECT field_number, field_name, sector_name FROM field ORDER BY field_number")]
-    countries = [r[0] for r in con.execute(
-        """SELECT country_code FROM family_assignee WHERE country_code != ''
-           GROUP BY country_code ORDER BY COUNT(*) DESC""")]
-    yr = con.execute("SELECT MIN(filing_year), MAX(filing_year) FROM patent_family").fetchone()
-    tot = con.execute("SELECT COUNT(*) FROM patent_family").fetchone()[0]
-    ncomp = con.execute("SELECT COUNT(DISTINCT name) FROM family_assignee").fetchone()[0]
+    fields = con.execute(
+        "SELECT field_number, field_name, sector_name FROM field ORDER BY field_number").fetchall()
+    # Countries from the materialized country_stats — a live GROUP BY over the 100M+ row assignee
+    # table would exceed the query timeout on the global dataset.
+    countries = [r["country_code"] for r in con.execute(
+        "SELECT country_code FROM country_stats WHERE country_code <> '' ORDER BY n_families DESC")]
+    # Headline scalars (families, distinct companies, year range) are precomputed once at load time
+    # into meta_stats — COUNT(DISTINCT name) over 100M+ rows is far too slow to run per cold cache.
+    m = con.execute("SELECT total_families, total_companies, year_min, year_max "
+                    "FROM meta_stats LIMIT 1").fetchone()
+    # distinct subclass codes per scheme (precomputed into class_index — DISTINCT over the 190M+ row
+    # family_class table is far too slow live) — drive the IPC/CPC autocomplete datalists
+    ipc_classes = [r["code"] for r in con.execute(
+        "SELECT code FROM class_index WHERE scheme='ipc' ORDER BY code")]
+    cpc_classes = [r["code"] for r in con.execute(
+        "SELECT code FROM class_index WHERE scheme='cpc' ORDER BY code")]
     con.close()
     return {"fields": fields, "countries": countries,
-            "year_min": yr[0], "year_max": yr[1], "total_families": tot, "total_companies": ncomp}
+            "year_min": m["year_min"], "year_max": m["year_max"],
+            "total_families": m["total_families"], "total_companies": m["total_companies"],
+            "ipc_classes": ipc_classes, "cpc_classes": cpc_classes}
 
 
 @app.get("/api/meta")
@@ -116,25 +231,45 @@ def meta():
 # ---- endpoints -----------------------------------------------------------------------
 @app.get("/api/trend")
 def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
-          y0: int = 0, y1: int = 0, status: str = ""):
-    unfiltered = not (field or country or q or y0 or y1 or status)
+          y0: int = 0, y1: int = 0, status: str = "", ipc: str = "", cpc: str = ""):
+    unfiltered = not (field or country or q or y0 or y1 or status or ipc or cpc)
 
     def run():
         con = db()
-        join, where, params = base(field, country, q, y0, y1, status)
-        if dim == "country" and unfiltered:
-            # served from the materialized table — instant
+        join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
+        if unfiltered and dim == "year":
+            # materialized — a live GROUP BY over the full patent_family is too slow at 81M rows
+            sql, params = ("SELECT filing_year AS label, granted, pending "
+                           "FROM year_stats ORDER BY filing_year"), []
+        elif unfiltered and dim == "field":
+            sql, params = ("SELECT field_name AS label, n FROM field_stats "
+                           "ORDER BY n DESC LIMIT 15"), []
+        elif unfiltered and dim == "country":
             sql, params = ("SELECT country_code AS label, n_families AS n FROM country_stats "
                            "ORDER BY n_families DESC LIMIT 15"), []
         elif dim == "field":
             sql = (f"SELECT fd.field_name AS label, COUNT(*) AS n FROM patent_family f {join} "
                    f"JOIN field fd ON fd.field_number = f.primary_field_number {where} "
-                   f"GROUP BY f.primary_field_number ORDER BY n DESC LIMIT 15")
+                   f"GROUP BY fd.field_name ORDER BY n DESC LIMIT 15")
         elif dim == "country":
             glue = "AND" if where else "WHERE"
             sql = (f"SELECT a.country_code AS label, COUNT(DISTINCT f.family_id) AS n "
                    f"FROM patent_family f {join} JOIN family_assignee a ON a.family_id = f.family_id "
                    f"{where} {glue} a.country_code != '' GROUP BY a.country_code ORDER BY n DESC LIMIT 15")
+        elif dim == "year" and country and not (field or q or ipc or cpc):
+            # fast path: family_country already carries granted+filing_year → pure index aggregate.
+            cw, params = ["country_code = %s"], [country]
+            if status == "granted":
+                cw.append("granted = 1")
+            elif status == "application":
+                cw.append("granted = 0")
+            if y0:
+                cw.append("filing_year >= %s"); params.append(y0)
+            if y1:
+                cw.append("filing_year <= %s"); params.append(y1)
+            sql = (f"SELECT filing_year AS label, SUM(granted) AS granted, "
+                   f"SUM(1 - granted) AS pending FROM family_country "
+                   f"WHERE {' AND '.join(cw)} GROUP BY filing_year ORDER BY filing_year")
         else:  # year — split by grant status for the stacked filed-vs-granted view
             sql = (f"SELECT f.filing_year AS label, "
                    f"SUM(f.granted) AS granted, SUM(1 - f.granted) AS pending "
@@ -143,30 +278,56 @@ def trend(dim: str = "year", field: int = 0, country: str = "", q: str = "",
         rows = [dict(r) for r in con.execute(sql, params)]
         con.close()
         return {"dim": dim, "data": rows}
-    return cached(("trend", dim, field, country, q, y0, y1, status), run)
+    return cached(("trend", dim, field, country, q, y0, y1, status, ipc, cpc), run)
 
 
 @app.get("/api/patents")
 def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
-            status: str = "", limit: int = 50, offset: int = 0):
+            status: str = "", ipc: str = "", cpc: str = "", limit: int = 50, offset: int = 0):
+    cols = ("f.family_id, f.rep_publication, f.filing_year, f.primary_field_name, "
+            "f.granted, f.n_bwd_citations, f.n_publications, f.ipc_main, f.cpc_codes")
+
     def run():
         con = db()
-        join, where, params = base(field, country, q, y0, y1, status)
-        total = con.execute(
-            f"SELECT COUNT(*) FROM patent_family f {join} {where}", params).fetchone()[0]
-        rows = con.execute(
-            f"""SELECT f.family_id, f.rep_publication, f.filing_year, f.primary_field_name,
-                       f.granted, f.n_bwd_citations, f.n_publications, f.ipc_main, f.cpc_codes
-                FROM patent_family f {join} {where}
-                ORDER BY f.filing_year DESC, f.family_id LIMIT ? OFFSET ?""",
-            params + [limit, offset]).fetchall()
+        if country and not (field or q or ipc or cpc):
+            # fast path: total + page driven off the family_country index (no assignee join).
+            cw, cp = ["fc.country_code = %s"], [country]
+            if status == "granted":
+                cw.append("fc.granted = 1")
+            elif status == "application":
+                cw.append("fc.granted = 0")
+            if y0:
+                cw.append("fc.filing_year >= %s"); cp.append(y0)
+            if y1:
+                cw.append("fc.filing_year <= %s"); cp.append(y1)
+            cwsql = " AND ".join(cw)
+            total = con.execute(
+                f"SELECT COUNT(*) AS n FROM family_country fc WHERE {cwsql}", cp).fetchone()["n"]
+            rows = con.execute(
+                f"""SELECT {cols} FROM family_country fc
+                    JOIN patent_family f ON f.family_id = fc.family_id
+                    WHERE {cwsql} ORDER BY fc.filing_year DESC, fc.family_id LIMIT %s OFFSET %s""",
+                cp + [limit, offset]).fetchall()
+        else:
+            join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
+            cand_sql, cand_params, needs_pf = _candidate(field, country, q, y0, y1, status, ipc, cpc)
+            if cand_sql is not None and not needs_pf:
+                # count the family-level candidate directly — no patent_family page fetches
+                total = con.execute(
+                    f"SELECT COUNT(*) AS n FROM {cand_sql} c", cand_params).fetchone()["n"]
+            else:
+                total = con.execute(
+                    f"SELECT COUNT(*) AS n FROM patent_family f {join} {where}", params).fetchone()["n"]
+            rows = con.execute(
+                f"""SELECT {cols} FROM patent_family f {join} {where}
+                    ORDER BY f.filing_year DESC, f.family_id LIMIT %s OFFSET %s""",
+                params + [limit, offset]).fetchall()
         fam_ids = [r["family_id"] for r in rows]
         owners = {}
         if fam_ids:
-            ph = ",".join("?" * len(fam_ids))
             for r in con.execute(
-                f"SELECT family_id, name, country_code FROM family_assignee WHERE family_id IN ({ph})",
-                fam_ids):
+                "SELECT family_id, name, country_code FROM family_assignee WHERE family_id = ANY(%s)",
+                [fam_ids]):
                 owners.setdefault(r["family_id"], []).append(
                     {"name": r["name"], "country": r["country_code"]})
         con.close()
@@ -176,7 +337,7 @@ def patents(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int
             d["assignees"] = owners.get(r["family_id"], [])
             out.append(d)
         return {"total": total, "limit": limit, "offset": offset, "rows": out}
-    return cached(("patents", field, country, q, y0, y1, status, limit, offset), run)
+    return cached(("patents", field, country, q, y0, y1, status, ipc, cpc, limit, offset), run)
 
 
 @app.get("/api/patent")
@@ -184,19 +345,19 @@ def patent(id: str):
     """Everything we hold on one family — powers the detail lightbox."""
     def run():
         con = db()
-        row = con.execute("SELECT * FROM patent_family WHERE family_id = ?", [id]).fetchone()
+        row = con.execute("SELECT * FROM patent_family WHERE family_id = %s", [id]).fetchone()
         if not row:
             con.close()
             return {"error": "not found"}
         d = dict(row)
-        d["assignees"] = [dict(r) for r in con.execute(
-            "SELECT name, country_code FROM family_assignee WHERE family_id = ?", [id])]
-        d["fields"] = [dict(r) for r in con.execute(
+        d["assignees"] = con.execute(
+            "SELECT name, country_code FROM family_assignee WHERE family_id = %s", [id]).fetchall()
+        d["fields"] = con.execute(
             """SELECT fd.field_number, fd.field_name, fd.sector_name
                FROM family_field ff JOIN field fd ON fd.field_number = ff.field_number
-               WHERE ff.family_id = ? ORDER BY fd.field_number""", [id])]
-        d["inventor_countries"] = [r[0] for r in con.execute(
-            "SELECT country_code FROM family_inventor_country WHERE family_id = ?", [id])]
+               WHERE ff.family_id = %s ORDER BY fd.field_number""", [id]).fetchall()
+        d["inventor_countries"] = [r["country_code"] for r in con.execute(
+            "SELECT country_code FROM family_inventor_country WHERE family_id = %s", [id])]
         con.close()
         return d
     return cached(("patent", id), run)
@@ -204,29 +365,28 @@ def patent(id: str):
 
 @app.get("/api/companies")
 def companies(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
-              status: str = "", limit: int = 25):
-    unfiltered = not (field or country or q or y0 or y1 or status)
+              status: str = "", ipc: str = "", cpc: str = "", limit: int = 25):
+    unfiltered = not (field or country or q or y0 or y1 or status or ipc or cpc)
 
     def run():
         con = db()
         if unfiltered:
-            # served from the materialized table — instant
             rows = [{"name": r["name"], "country_code": r["country_code"], "families": r["n_families"]}
                     for r in con.execute(
                         "SELECT name, country_code, n_families FROM company_stats "
-                        "ORDER BY n_families DESC LIMIT ?", [limit])]
+                        "ORDER BY n_families DESC LIMIT %s", [limit])]
             con.close()
             return {"rows": rows}
-        join, where, params = base(field, country, q, y0, y1, status)
+        join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
         glue = "AND" if where else "WHERE"
         sql = (f"SELECT a2.name, a2.country_code, COUNT(DISTINCT f.family_id) AS families "
                f"FROM patent_family f {join} JOIN family_assignee a2 ON a2.family_id = f.family_id "
                f"{where} {glue} a2.name != '' GROUP BY a2.name, a2.country_code "
-               f"ORDER BY families DESC LIMIT ?")
+               f"ORDER BY families DESC LIMIT %s")
         rows = [dict(r) for r in con.execute(sql, params + [limit])]
         con.close()
         return {"rows": rows}
-    return cached(("companies", field, country, q, y0, y1, status, limit), run)
+    return cached(("companies", field, country, q, y0, y1, status, ipc, cpc, limit), run)
 
 
 def _iso(d):
@@ -235,9 +395,10 @@ def _iso(d):
 
 
 @app.get("/api/export.csv")
-def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0, status: str = ""):
+def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: int = 0,
+               status: str = "", ipc: str = "", cpc: str = ""):
     con = db()
-    join, where, params = base(field, country, q, y0, y1, status)
+    join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
     CAP = 50000
     rows = con.execute(
         f"""SELECT f.family_id, f.rep_publication, f.rep_application, f.filing_year,
@@ -249,10 +410,9 @@ def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: 
     fam_ids = [r["family_id"] for r in rows]
     owners = {}
     if fam_ids:
-        ph = ",".join("?" * len(fam_ids))
         for r in con.execute(
-            f"SELECT family_id, name, country_code FROM family_assignee WHERE family_id IN ({ph})",
-            fam_ids):
+            "SELECT family_id, name, country_code FROM family_assignee WHERE family_id = ANY(%s)",
+            [fam_ids]):
             owners.setdefault(r["family_id"], []).append(f'{r["name"]} ({r["country_code"]})')
     con.close()
     buf = io.StringIO()
@@ -272,7 +432,352 @@ def export_csv(field: int = 0, country: str = "", q: str = "", y0: int = 0, y1: 
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]), media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=wipo_patents_europe.csv"})
+        headers={"Content-Disposition": "attachment; filename=wipo_patents_us_europe.csv"})
+
+
+# ---- assistant-generated CSV downloads (persisted on the server until deleted) -------
+# The assistant asks for a file by emitting a ```csv fenced JSON spec (see CHAT_SYSTEM);
+# the frontend POSTs it here. Files live in DOWNLOAD_DIR as {id}.csv + {id}.json sidecar.
+DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR")
+                    or Path(__file__).resolve().parent.parent / "data" / "downloads")
+DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+DL_ROW_CAP = 50_000      # same cap as the sidebar CSV export
+MAX_DL_FILES = 200       # disk-full guard for this public endpoint
+_ID_RE = re.compile(r"^[0-9a-f]{16}$")
+
+# Columns the assistant may request → SQL on "patent_family f". Keys double as the CSV
+# headers and the SELECT aliases, so psycopg dict rows key on them directly.
+# "applicants" is special: aggregated from family_assignee after the main query.
+EXPORT_COLUMNS = OrderedDict([
+    ("family_id", "f.family_id"),
+    ("publication_number", "f.rep_publication AS publication_number"),
+    ("application_number", "f.rep_application AS application_number"),
+    ("priority_date", "f.priority_date"),
+    ("filing_date", "f.filing_date"),
+    ("publication_date", "f.publication_date"),
+    ("grant_date", "f.grant_date"),
+    ("filing_year", "f.filing_year"),
+    ("granted", "f.granted"),
+    ("wipo_field_number", "f.primary_field_number AS wipo_field_number"),
+    ("wipo_field", "f.primary_field_name AS wipo_field"),
+    ("ipc_main", "f.ipc_main"),
+    ("ipc_codes", "f.ipc_codes"),
+    ("cpc_codes", "f.cpc_codes"),
+    ("n_family_members", "f.n_publications AS n_family_members"),
+    ("family_member_publications", "f.member_publications"),
+    ("n_backward_citations", "f.n_bwd_citations AS n_backward_citations"),
+    ("n_forward_citations", "COALESCE(fc.n_forward_citations, 0) AS n_forward_citations"),
+    ("applicants", None),
+])
+_DATE_COLS = {"priority_date", "filing_date", "publication_date", "grant_date"}
+
+
+def _safe_name(name):
+    """Display/download filename: ASCII only, no path tricks, always ends in .csv."""
+    name = re.sub(r"[^A-Za-z0-9 ._\-()]", "", str(name or "")).strip().strip(".")[:80].strip()
+    if not name:
+        name = "patents"
+    return name if name.lower().endswith(".csv") else name + ".csv"
+
+
+def _dl_meta(fid):
+    try:
+        return json.loads((DOWNLOAD_DIR / f"{fid}.json").read_text())
+    except Exception:
+        return None
+
+
+def _dl_list():
+    """All stored files, newest first (reverse chronological for the Downloads section)."""
+    out = []
+    for p in DOWNLOAD_DIR.glob("*.json"):
+        m = _dl_meta(p.stem)
+        csvp = DOWNLOAD_DIR / f"{p.stem}.csv"
+        if not m or not csvp.exists():
+            continue
+        m["size"] = csvp.stat().st_size
+        out.append(m)
+    out.sort(key=lambda m: m.get("created", ""), reverse=True)
+    return out
+
+
+def _dl_not_found():
+    return JSONResponse({"error": "not found"}, status_code=404)
+
+
+class _DlSpec(BaseModel):
+    name: str = ""
+    columns: list[str] = []
+    filters: dict = {}
+    limit: int = 0
+
+
+class _DlRename(BaseModel):
+    name: str = ""
+
+
+@app.get("/api/downloads")
+def downloads_list():
+    return {"files": _dl_list()}
+
+
+@app.post("/api/downloads")
+def downloads_create(spec: _DlSpec, request: Request):
+    if not _rate_ok(_client_ip(request), _DL_HITS, limit=10, window=60):
+        return JSONResponse({"error": "Too many files — please wait a minute."}, status_code=429)
+    columns = list(dict.fromkeys(spec.columns))
+    if not columns or any(c not in EXPORT_COLUMNS for c in columns):
+        return JSONResponse({"error": "columns must be a non-empty subset of: "
+                             + ", ".join(EXPORT_COLUMNS)}, status_code=400)
+
+    def _int(v, lo=0, hi=2100):
+        try:
+            return max(lo, min(hi, int(v or 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    f = spec.filters if isinstance(spec.filters, dict) else {}
+    field = _int(f.get("field"), 0, 99)
+    y0, y1 = _int(f.get("y0")), _int(f.get("y1"))
+    status = f.get("status") if f.get("status") in ("granted", "application") else ""
+    country = re.sub(r"[^A-Za-z]", "", str(f.get("country") or ""))[:3].upper()
+    q = str(f.get("q") or "")[:200]
+    ipc = re.sub(r"[^A-Za-z0-9]", "", str(f.get("ipc") or ""))[:20].upper()
+    cpc = re.sub(r"[^A-Za-z0-9]", "", str(f.get("cpc") or ""))[:20].upper()
+    limit = max(1, min(DL_ROW_CAP, spec.limit)) if spec.limit else DL_ROW_CAP
+    if len(_dl_list()) >= MAX_DL_FILES:
+        return JSONResponse({"error": f"Storage is full ({MAX_DL_FILES} files) — "
+                             "delete some in the Downloads section first."}, status_code=429)
+
+    want_applicants = "applicants" in columns
+    sql_cols = [EXPORT_COLUMNS[c] for c in columns if c != "applicants"]
+    if want_applicants and "family_id" not in columns:
+        sql_cols.append("f.family_id")   # needed to key the applicant aggregation
+    join, where, params = base(field, country, q, y0, y1, status, ipc, cpc)
+    if "n_forward_citations" in columns:
+        join += " LEFT JOIN forward_citations fc ON fc.family_id = f.family_id"
+    try:
+        con = db()
+        rows = con.execute(
+            f"SELECT {', '.join(sql_cols)} FROM patent_family f {join} {where} "
+            "ORDER BY f.filing_year DESC, f.family_id LIMIT %s", params + [limit]).fetchall()
+        owners = {}
+        if want_applicants and rows:
+            fam_ids = [r["family_id"] for r in rows]
+            for r in con.execute(
+                "SELECT family_id, name, country_code FROM family_assignee WHERE family_id = ANY(%s)",
+                [fam_ids]):
+                owners.setdefault(r["family_id"], []).append(f'{r["name"]} ({r["country_code"]})')
+        con.close()
+    except Exception:
+        return JSONResponse({"error": "that query failed — try narrower filters or fewer columns"},
+                            status_code=400)
+
+    fid = secrets.token_hex(8)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(columns)
+    for r in rows:
+        w.writerow(["; ".join(owners.get(r["family_id"], [])) if c == "applicants"
+                    else _iso(r[c]) if c in _DATE_COLS else r[c] for c in columns])
+    (DOWNLOAD_DIR / f"{fid}.csv").write_text(buf.getvalue())
+    meta = {"id": fid, "name": _safe_name(spec.name), "rows": len(rows), "columns": columns,
+            "filters": {k: v for k, v in {"field": field, "country": country, "q": q, "y0": y0,
+                                          "y1": y1, "status": status, "ipc": ipc, "cpc": cpc}.items() if v},
+            "created": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    (DOWNLOAD_DIR / f"{fid}.json").write_text(json.dumps(meta))
+    meta["size"] = (DOWNLOAD_DIR / f"{fid}.csv").stat().st_size
+    return meta
+
+
+@app.api_route("/api/downloads/{fid}/file", methods=["GET", "HEAD"])
+def downloads_file(fid: str):
+    if not _ID_RE.match(fid or ""):
+        return _dl_not_found()
+    p, m = DOWNLOAD_DIR / f"{fid}.csv", _dl_meta(fid)
+    if not p.exists() or not m:
+        return _dl_not_found()
+    return FileResponse(p, media_type="text/csv", filename=m.get("name") or "patents.csv")
+
+
+@app.patch("/api/downloads/{fid}")
+def downloads_rename(fid: str, body: _DlRename):
+    if not _ID_RE.match(fid or ""):
+        return _dl_not_found()
+    m = _dl_meta(fid)
+    if not m or not (DOWNLOAD_DIR / f"{fid}.csv").exists():
+        return _dl_not_found()
+    m["name"] = _safe_name(body.name)
+    (DOWNLOAD_DIR / f"{fid}.json").write_text(json.dumps(m))
+    return m
+
+
+@app.delete("/api/downloads/{fid}")
+def downloads_delete(fid: str):
+    if not _ID_RE.match(fid or ""):
+        return _dl_not_found()
+    csvp, metap = DOWNLOAD_DIR / f"{fid}.csv", DOWNLOAD_DIR / f"{fid}.json"
+    existed = csvp.exists() or metap.exists()
+    csvp.unlink(missing_ok=True)
+    metap.unlink(missing_ok=True)
+    return {"ok": True} if existed else _dl_not_found()
+
+
+CHAT_SYSTEM = """You are the built-in research assistant on the WIPO Patents website (wipo.b11.dev). \
+You help a researcher (an economics master's student) explore a global patent dataset and connect to \
+it from R and Stata. Be concise, warm, and practical. Prefer showing working, copy-paste-ready code.
+
+THE DATASET — live, read-only PostgreSQL on Neon (schema: public):
+Global patent families, 1930–2026, ~81.4 million families, built from Google Patents public data.
+Tables:
+- patent_family — one row per family. Columns: family_id (text, PK); rep_publication, rep_application; \
+priority_date, filing_date, publication_date, grant_date (INTEGERS in YYYYMMDD form, e.g. 20230115); \
+filing_year (int); granted (1 = granted patent, 0 = pending application); n_publications; \
+n_bwd_citations; primary_field_name (one of the 35 WIPO technology fields); ipc_main; ipc_codes; \
+cpc_codes (ipc/cpc codes are semicolon-joined text).
+- family_assignee — (family_id, name, country_code): applicants/owners; a family may have several; \
+country_code is ISO-2. (Only ~26% of families have a harmonized applicant country; pre-2000 is sparser.)
+- family_class — (family_id, scheme ['ipc'|'cpc'], code): 4-char subclass, e.g. 'F21V'. Filter by \
+prefix with an indexable range: code >= 'F21' AND code < 'F22' (or code LIKE 'F21%').
+- family_country — (country_code, granted, filing_year, family_id): precomputed for fast country + \
+year + status filtering and by-year aggregates.
+- field — the 35 WIPO fields (field_number, field_name, sector_name).
+- forward_citations — (family_id, n_forward_citations): FAMILY-LEVEL forward citations = number of \
+distinct later patent families that cite this family, excluding self-citations (the standard \
+innovation-impact metric). Join on family_id; families absent here have 0. n_backward_citations is \
+already on patent_family; forward citations only exist in this table.
+- country_stats, company_stats, year_stats, field_stats, class_index, meta_stats — precomputed aggregates.
+A ready-made bulk file exists — granted US+EU patents 1930–present with forward citations, ~7.9M rows:
+https://wipo.b11.dev/downloads/us_eu_granted_1930_present.csv.gz (327 MB gzipped). Point her there if \
+she wants the whole granted set as one download rather than querying.
+IMPORTANT: dates are integers YYYYMMDD. In R convert with as.Date(as.character(x), "%Y%m%d"). \
+The DB is hosted in Singapore, so ALWAYS aggregate in SQL (GROUP BY / counts) and pull back summaries \
+— never SELECT * the whole 81M rows.
+COMMON TECH-AREA MAPPINGS (the 35 WIPO fields are broad; for specific tech use IPC/CPC codes): \
+AI / machine learning ≈ CPC or IPC subclass 'G06N' (and the WIPO field is 'Computer technology'); \
+semiconductors ≈ 'H01L'; batteries/energy storage ≈ 'H01M'; clean/green tech ≈ CPC 'Y02'; \
+pharmaceuticals ≈ 'A61K'; lighting ≈ 'F21'. Do NOT invent a WIPO field name like 'Artificial \
+Intelligence' — it doesn't exist; filter on the family_class code instead (fc.code >= 'G06N' AND fc.code < 'G06O').
+
+CONNECTING (read-only login jannie_ro):
+host = ep-cold-truth-aoi12n77-pooler.c-2.ap-southeast-1.aws.neon.tech ; database = neondb ; \
+user = jannie_ro ; port = 5432 ; sslmode = require.
+NEVER print a real password. Always use the placeholder <YOUR_PASSWORD> and tell her to paste her own \
+jannie_ro password. R: use DBI + RPostgres. Stata: use the jdbc command with the PostgreSQL JDBC driver.
+
+R connection template:
+```r
+library(DBI)
+con <- dbConnect(RPostgres::Postgres(),
+  host="ep-cold-truth-aoi12n77-pooler.c-2.ap-southeast-1.aws.neon.tech",
+  dbname="neondb", user="jannie_ro", password="<YOUR_PASSWORD>", sslmode="require")
+df <- dbGetQuery(con, "SELECT filing_year, SUM(granted) AS granted FROM family_country WHERE country_code='CN' GROUP BY filing_year ORDER BY filing_year")
+```
+Stata connection template:
+```stata
+jdbc connect, jar("postgresql-42.7.4.jar") driverclass("org.postgresql.Driver") ///
+  url("jdbc:postgresql://ep-cold-truth-aoi12n77-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require") ///
+  user("jannie_ro") password("<YOUR_PASSWORD>")
+jdbc load, clear exec("SELECT filing_year, COUNT(*) AS n FROM patent_family GROUP BY filing_year ORDER BY filing_year")
+```
+
+THE WEBSITE FILTERS (left sidebar) — you can also guide her to use these instead of code:
+WIPO technology field (35 fields); Patent status (granted / pending / all); Applicant country; \
+Company contains (name search); IPC class and CPC class (type a prefix like F21 or Y02E); From/To year \
+(1930–2026); then Apply. The chart toggles By year / By field / By country. Clicking a publication \
+number opens a detail lightbox. There's a CSV download (capped at 50,000 rows). Applied filters are \
+saved in the URL, so views are shareable/bookmarkable.
+
+CREATING DOWNLOADABLE CSV FILES — when she asks for a CSV / spreadsheet / export / "data file" of \
+something, you can create one directly: output ONE fenced block tagged csv containing ONLY a JSON object:
+```csv
+{"name": "ai_patents_china_2010s.csv", "limit": 50000,
+ "columns": ["family_id", "publication_number", "filing_year", "granted", "wipo_field", "ipc_codes", "n_forward_citations", "applicants"],
+ "filters": {"field": 0, "country": "CN", "q": "", "y0": 2010, "y1": 2019, "status": "", "ipc": "", "cpc": ""}}
+```
+Rules: "columns" must come ONLY from this list — family_id, publication_number, application_number, \
+priority_date, filing_date, publication_date, grant_date, filing_year, granted, wipo_field_number, \
+wipo_field, ipc_main, ipc_codes, cpc_codes, n_family_members, family_member_publications, \
+n_backward_citations, n_forward_citations, applicants. "filters" mirror the website filters \
+(field = WIPO field number 1–35 or 0; country = ISO-2 code; q = company name contains; y0/y1 = \
+filing-year range, 0 = unbounded; status = "granted" | "application" | ""; ipc/cpc = class prefixes). \
+Row cap is 50,000 — if she needs more, suggest splitting by year ranges or point her to the bulk file. \
+Emit at most ONE csv block per reply, only when she actually wants a file, and keep all prose OUTSIDE \
+the block. The file appears in the "Downloads" section at the bottom of the page — tell her that. \
+Do NOT emit a csv block for code she should run herself (R/Stata/SQL still go in normal code blocks).
+
+HOW TO HELP:
+- R/Stata questions → give copy-paste-ready code in ```r or ```stata fenced blocks, then a one-line note.
+- "How do I see/find X" → suggest the website filters AND/OR a ready SQL/R query, whichever is easier.
+- Keep it focused and correct; don't invent columns or tables beyond those listed above."""
+
+# simple per-IP fixed-window rate limit to bound cost on these public endpoints
+_CHAT_HITS = {}
+_DL_HITS = {}
+
+
+def _rate_ok(ip, bucket, limit=15, window=60):
+    now = time.time()
+    hits = [t for t in bucket.get(ip, []) if now - t < window]
+    if len(hits) >= limit:
+        bucket[ip] = hits
+        return False
+    hits.append(now)
+    bucket[ip] = hits
+    return True
+
+
+def _client_ip(request):
+    return (request.headers.get("x-forwarded-for", "") or "").split(",")[0].strip() \
+        or (request.client.host if request.client else "?")
+
+
+@app.post("/api/chat")
+async def chat(request: Request):
+    if not FIREWORKS_KEY:
+        return JSONResponse({"error": "assistant not configured"}, status_code=503)
+    if not _rate_ok(_client_ip(request), _CHAT_HITS):
+        return JSONResponse({"error": "Too many messages — please wait a minute."}, status_code=429)
+    try:
+        body = await request.json()
+        incoming = body.get("messages", [])
+    except Exception:
+        return JSONResponse({"error": "bad request"}, status_code=400)
+    # sanitise: keep only user/assistant turns, cap history + per-message length
+    msgs = [{"role": m["role"], "content": str(m["content"])[:6000]}
+            for m in incoming[-12:]
+            if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")]
+    if not msgs:
+        return JSONResponse({"error": "no message"}, status_code=400)
+
+    def gen():
+        payload = json.dumps({
+            "model": CHAT_MODEL,
+            "messages": [{"role": "system", "content": CHAT_SYSTEM}] + msgs,
+            "stream": True, "max_tokens": 1400, "temperature": 0.3,
+        }).encode()
+        req = urllib.request.Request(FIREWORKS_URL, data=payload, headers={
+            "Authorization": f"Bearer {FIREWORKS_KEY}", "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                for raw in resp:
+                    line = raw.decode("utf-8", "ignore").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(data)["choices"][0]["delta"].get("content", "")
+                    except Exception:
+                        continue
+                    if delta:
+                        yield delta
+        except Exception as e:
+            yield f"\n\n_(assistant error: {type(e).__name__} — check the Fireworks key/credits.)_"
+
+    return StreamingResponse(gen(), media_type="text/plain; charset=utf-8",
+                             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
 
 
 @app.on_event("startup")

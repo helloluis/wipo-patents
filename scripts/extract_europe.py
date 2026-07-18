@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Extract the all-Europe dataset from BigQuery into local SQLite (family-level, enriched).
+Extract the US+Europe dataset from BigQuery into local SQLite (family-level, enriched).
 
-Universe: DOCDB family, earliest priority/filing year 2000-2026, >=1 European applicant.
+Universe: DOCDB family, earliest priority/filing year 2000-2026, >=1 applicant in the US or Europe.
 Includes BOTH granted patents and pending applications (the `granted` flag distinguishes them) so
 recent filing years aren't lost to grant lag.
 
@@ -28,7 +28,9 @@ from wipo_patents.concordance import Concordance  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 CONC = ROOT / "data" / "concordance" / "ipc_technology_bootstrap.csv"
 
-EUR = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU',
+# Applicant-origin universe: the United States + all of (broad) Europe.
+ORIGINS = ['US',
+       'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU',
        'MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','CH','IS','LI','NO','AL','BA','ME','MK',
        'RS','XK','RU','UA','BY','MD','GE','AM','AZ','TR','AD','MC','SM','VA']
 
@@ -48,6 +50,10 @@ CREATE TABLE IF NOT EXISTS family_field (
   family_id TEXT, field_number INTEGER, weight REAL, PRIMARY KEY (family_id, field_number));
 CREATE TABLE IF NOT EXISTS family_inventor_country (
   family_id TEXT, country_code TEXT, PRIMARY KEY (family_id, country_code));
+-- Indexable classification index: one row per (family, scheme, 4-char subclass), e.g.
+-- ('123','ipc','F21V'). Powers the prefix filters ("F21" -> code LIKE 'F21%', range-scannable).
+CREATE TABLE IF NOT EXISTS family_class (
+  family_id TEXT, scheme TEXT, code TEXT, PRIMARY KEY (family_id, scheme, code));
 """
 
 # Created AFTER the bulk load — building indexes up front makes every insert maintain them
@@ -61,11 +67,25 @@ CREATE INDEX IF NOT EXISTS ix_fa_cc         ON family_assignee(country_code);
 CREATE INDEX IF NOT EXISTS ix_fa_fid        ON family_assignee(family_id);
 CREATE INDEX IF NOT EXISTS ix_fa_cc_fid     ON family_assignee(country_code, family_id);
 CREATE INDEX IF NOT EXISTS ix_ff_field      ON family_field(field_number);
+-- (scheme, code, family_id) covers the prefix scan and the family dedup in one index.
+CREATE INDEX IF NOT EXISTS ix_fc_code       ON family_class(scheme, code, family_id);
 """
 
 
+def subclasses(codes):
+    """Distinct 4-char IPC/CPC subclasses (e.g. 'F21V8/00' -> 'F21V') for the prefix index.
+    Storing subclass level keeps the index small while supporting section/class/subclass
+    prefix searches ('F', 'F21', 'F21V')."""
+    out = set()
+    for c in codes:
+        s = (c or "").replace(" ", "").upper()
+        if len(s) >= 4 and s[0].isalpha() and s[1:3].isdigit() and s[3].isalpha():
+            out.add(s[:4])
+    return out
+
+
 def build_query():
-    eur = "(" + ",".join(f"'{x}'" for x in EUR) + ")"
+    origins = "(" + ",".join(f"'{x}'" for x in ORIGINS) + ")"
     return f"""
 WITH pub AS (
   SELECT family_id, publication_number, application_number,
@@ -106,7 +126,7 @@ SELECT
 FROM fam
 WHERE COALESCE(priority_date, filing_date) IS NOT NULL
   AND CAST(FLOOR(COALESCE(priority_date, filing_date)/10000) AS INT64) BETWEEN 2000 AND 2026
-  AND EXISTS(SELECT 1 FROM UNNEST(assignees) a WHERE a.country_code IN {eur})
+  AND EXISTS(SELECT 1 FROM UNNEST(assignees) a WHERE a.country_code IN {origins})
 """
 
 
@@ -148,7 +168,7 @@ def main():
     bqs = bigquery_storage.BigQueryReadClient()
     for batch in result.to_arrow_iterable(bqstorage_client=bqs):
         c = batch.to_pydict()
-        rows_pf, rows_ff, rows_fa, rows_fi = [], [], [], []
+        rows_pf, rows_ff, rows_fa, rows_fi, rows_fc = [], [], [], [], []
         for i in range(batch.num_rows):
             fid = c["family_id"][i]
             ipc = c["ipc_codes"][i] or []
@@ -171,11 +191,16 @@ def main():
                 rows_fa.append((fid, a["name"], a["country_code"]))
             for cc in (c["inventor_countries"][i] or []):
                 rows_fi.append((fid, cc))
+            for sc in subclasses(ipc):
+                rows_fc.append((fid, "ipc", sc))
+            for sc in subclasses(cpc):
+                rows_fc.append((fid, "cpc", sc))
             n += 1
         cur.executemany("INSERT OR REPLACE INTO patent_family VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows_pf)
         cur.executemany("INSERT OR REPLACE INTO family_field VALUES (?,?,?)", rows_ff)
         cur.executemany("INSERT INTO family_assignee VALUES (?,?,?)", rows_fa)
         cur.executemany("INSERT OR REPLACE INTO family_inventor_country VALUES (?,?)", rows_fi)
+        cur.executemany("INSERT OR REPLACE INTO family_class VALUES (?,?,?)", rows_fc)
         con.commit()
         print(f"  {n:,} families")
     print(f"Loaded {n:,} families -> {out}")
@@ -190,6 +215,8 @@ def main():
         ("granted", "SELECT COUNT(*) FROM patent_family WHERE granted=1"),
         ("applications", "SELECT COUNT(*) FROM patent_family WHERE granted=0"),
         ("with CPC", "SELECT COUNT(*) FROM patent_family WHERE cpc_codes != ''"),
+        ("class index rows", "SELECT COUNT(*) FROM family_class"),
+        ("distinct IPC subclasses", "SELECT COUNT(DISTINCT code) FROM family_class WHERE scheme='ipc'"),
         ("distinct companies", "SELECT COUNT(DISTINCT name) FROM family_assignee")]:
         print(f"  {label:<20} {con.execute(q).fetchone()[0]:>12,}")
     con.close()

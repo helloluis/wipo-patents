@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WIPO Patents · Europe</title>
-<link rel="stylesheet" href="/styles.css?v=10">
+<title>WIPO Patents · Worldwide</title>
+<link rel="stylesheet" href="/styles.css?v=16">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 </head>
 <body>
@@ -12,8 +12,8 @@
   <div class="brand">
     <span class="logo">▤</span>
     <div>
-      <h1>WIPO Patents <span class="sep">/</span> Europe</h1>
-      <p class="tag">Granted patent families, 2000–2026 · classified by the 35 WIPO technology fields</p>
+      <h1>WIPO Patents <span class="sep">/</span> Worldwide</h1>
+      <p class="tag">Patent families (granted + pending), 1930–2026 · classified by the 35 WIPO technology fields</p>
     </div>
   </div>
   <div class="stats" id="stats"></div>
@@ -43,9 +43,17 @@
     <label>Company contains
       <input id="f-company" type="search" placeholder="e.g. Siemens, Bosch…" autocomplete="off">
     </label>
+    <label>IPC class starts with
+      <input id="f-ipc" type="search" placeholder="e.g. F21, H04L" list="ipc-list" autocomplete="off">
+      <datalist id="ipc-list"></datalist>
+    </label>
+    <label>CPC class starts with
+      <input id="f-cpc" type="search" placeholder="e.g. Y02E, G06N" list="cpc-list" autocomplete="off">
+      <datalist id="cpc-list"></datalist>
+    </label>
     <div class="years">
-      <label>From <input id="f-y0" type="number" min="2000" max="2026" placeholder="2000"></label>
-      <label>To <input id="f-y1" type="number" min="2000" max="2026" placeholder="2026"></label>
+      <label>From <input id="f-y0" type="number" min="1930" max="2026" placeholder="1930"></label>
+      <label>To <input id="f-y1" type="number" min="1930" max="2026" placeholder="2026"></label>
     </div>
     <div class="btns">
       <button id="apply" class="primary">Apply</button>
@@ -89,6 +97,13 @@
       <div class="card-head"><h3>Related research <span class="count">· comparable studies</span></h3></div>
       <div id="research"></div>
     </div>
+
+    <div class="card" id="downloads">
+      <div class="card-head"><h3>Downloads <span id="dl-count" class="count"></span></h3></div>
+      <p class="dl-sub">CSV files created for you by the research assistant — stored on the server until you delete them.</p>
+      <div id="dl-list"></div>
+      <p id="dl-empty" class="hint">No files yet. Ask the assistant for one — e.g. <i>“Make me a CSV of German battery patents (H01M) since 2015, with applicants and forward citations.”</i></p>
+    </div>
   </section>
 </main>
 
@@ -99,7 +114,44 @@
   </div>
 </div>
 
+<!-- confirmation popup (downloads delete, errors) -->
+<div id="confirm" class="confirm" hidden>
+  <div class="confirm-card">
+    <p id="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button id="confirm-cancel">Cancel</button>
+      <button id="confirm-ok" class="danger">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- floating AI research assistant -->
+<div id="asst" class="asst collapsed">
+  <button id="asst-fab" class="asst-fab" aria-label="Open research assistant">
+    <span class="asst-fab-icon">✦</span><span class="asst-fab-label">Ask the assistant</span>
+  </button>
+  <div class="asst-panel" role="dialog" aria-label="Research assistant">
+    <div class="asst-head">
+      <div><b>Research assistant</b><span class="asst-sub">R · Stata · the data · CSV files · the filters</span></div>
+      <div class="asst-head-btns">
+        <button id="asst-clear" class="asst-icon" aria-label="Clear conversation" title="Clear conversation">🗑</button>
+        <button id="asst-max" class="asst-icon" aria-label="Maximize" title="Maximize / restore">⤢</button>
+        <button id="asst-min" class="asst-icon" aria-label="Minimize" title="Minimize">–</button>
+      </div>
+    </div>
+    <div id="asst-log" class="asst-log"></div>
+    <form id="asst-form" class="asst-form">
+      <textarea id="asst-text" rows="1" placeholder="Ask about the data, R/Stata syntax, or the filters…"></textarea>
+      <button type="submit" id="asst-send" aria-label="Send">➤</button>
+    </form>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/app.js?v=10"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="/app.js?v=12"></script>
+<script src="/chat.js?v=4"></script>
+<script src="/downloads.js?v=1"></script>
 </body>
 </html>

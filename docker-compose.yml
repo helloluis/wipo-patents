@@ -6,4 +6,8 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data/europe.sqlite:/data/europe.sqlite:ro
+      # assistant-generated CSV downloads persist on the host here (until deleted from the UI)
+      - ./data/downloads:/data/downloads
+    environment:
+      - DOWNLOAD_DIR=/data/downloads
     restart: unless-stopped

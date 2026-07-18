@@ -1,3 +1,4 @@
 # Web app runtime (the data pipeline's deps live in pyproject.toml)
 fastapi>=0.115
 uvicorn[standard]>=0.30
+psycopg[binary]>=3.1   # serves from Neon Postgres (NEON_DSN); no local SQLite

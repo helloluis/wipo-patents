@@ -1,36 +1,67 @@
 # Deploying to wipo.b11.dev
 
-Public, read-only app. The database is **not** in git — it's a release asset (and reproducible
-from `scripts/extract_europe.py`). Three pieces: get the code, get the DB, run + proxy.
+Public, read-only app. Data lives in **Neon Postgres** (not in git); the app runs on the VPS
+(`kamai`) under **systemd**, fronted by nginx.
 
-## On the VPS
+## Deploying changes (the usual case)
 
 ```bash
-# 1. Code
-git clone git@github.com:helloluis/wipo-patents.git
-cd wipo-patents
-
-# 2. Database (downloaded, not cloned). Pull the latest data release asset:
-mkdir -p data
-gh release download data-europe-v1 --pattern 'europe.sqlite.gz' --output - | gunzip > data/europe.sqlite
-#   ...or scp it from your machine:  scp data/europe.sqlite vps:/path/wipo-patents/data/
-sha256sum -c data/europe.sqlite.sha256   # optional integrity check (asset in the release)
-
-# 3. Run (binds to 127.0.0.1:8000)
-docker compose up -d --build
+# push from anywhere, then on the VPS:
+ssh kamai
+cd /var/www/wipo-patents && git pull
+sudo systemctl restart wipo-patents
 curl -s localhost:8000/api/meta | head -c 200      # smoke test
 ```
 
-## nginx reverse proxy (wipo.b11.dev)
+That's it — no Docker, no PM2 (PM2 runs other projects on this box, not this one).
+
+## Layout on the VPS
+
+- `/var/www/wipo-patents` — the git checkout. App: `.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1`
+- `systemctl cat wipo-patents` — the unit; env (`NEON_DSN`, `FIREWORKS_API_KEY`) is set there
+- nginx `wipo.b11.dev` → `127.0.0.1:8000`, plus a static alias (see below)
+
+## Two different "downloads" — don't confuse them
+
+- `/var/www/wipo-patents/downloads/` — **hand-placed bulk files** (e.g. the 327 MB
+  `us_eu_granted_1930_present.csv.gz`), served directly by nginx via the `/downloads/` alias.
+- `data/downloads/` — **assistant-generated CSVs** (default `DOWNLOAD_DIR`), served by the app
+  via `/api/downloads/…` with rename/delete. Persist across deploys; gitignored.
+
+## First-time setup
+
+```bash
+git clone git@github.com:helloluis/wipo-patents.git /var/www/wipo-patents
+cd /var/www/wipo-patents
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+mkdir -p data/downloads downloads
+
+# systemd unit (Environment= lines carry the secrets — keep them out of git):
+#   [Service]
+#   WorkingDirectory=/var/www/wipo-patents
+#   Environment=NEON_DSN=postgresql://... FIREWORKS_API_KEY=...
+#   ExecStart=/var/www/wipo-patents/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+sudo systemctl enable --now wipo-patents
+```
+
+## nginx (wipo.b11.dev)
 
 ```nginx
 server {
     server_name wipo.b11.dev;
+    location /downloads/ {           # hand-placed bulk files, served statically
+        alias /var/www/wipo-patents/downloads/;
+        add_header Content-Disposition attachment;
+        add_header Cache-Control "no-store";
+    }
     location / {
         proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_read_timeout 30s;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;     # chat streams; CSV queries can take a while
     }
 }
 ```
@@ -41,18 +72,9 @@ sudo certbot --nginx -d wipo.b11.dev    # TLS
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Point the `wipo` A/AAAA (or CNAME) record at the VPS, and it's live.
+Point the `wipo` A/AAAA record at the VPS, and it's live.
 
-## Without Docker (systemd)
+## Docker (alternative, not how production runs)
 
-```bash
-python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-WIPO_DB=$PWD/data/europe.sqlite uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-Wrap that uvicorn line in a systemd unit (`Restart=always`) and proxy as above.
-
-## Updating the data
-
-Rebuild the SQLite locally (`python scripts/extract_europe.py`), publish a new release asset,
-then on the VPS re-download into `data/` and `docker compose restart`. The app opens the DB
-read-only/immutable, so swapping the file + restart is all that's needed.
+`docker compose up -d --build` also works: it mounts the repo's `data/downloads` for
+assistant CSVs and sets `DOWNLOAD_DIR` — but production uses the systemd flow above.
